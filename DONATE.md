@@ -1,28 +1,36 @@
-﻿# Support Codex Gestion
+# Support Codex Gestion
 
 Codex Gestion is free to install and use.
 
 If it saves you time, donations are welcome but completely optional. Donations
 do not unlock extra features and are not required for support.
 
-## Donation links
+## Active donation link
 
-Replace these placeholders with the services you want to use:
+You can support the project on Ko-fi:
 
-- GitHub Sponsors: `TODO`
-- Ko-fi: `TODO`
-- Buy Me a Coffee: `TODO`
-- PayPal.Me: `TODO`
-- Stripe Payment Link: `TODO`
+https://ko-fi.com/jacom15
 
-## Recommended wording for Marketplace
+## Other channels
+
+These channels can be added later if they are configured:
+
+- GitHub Sponsors
+- Buy Me a Coffee
+- PayPal.Me
+- Stripe Payment Link
+
+I only list active payment links in the README so supporters do not land on
+unfinished or unavailable donation options.
+
+## Marketplace wording
 
 If Codex Gestion helps you manage Codex accounts and quotas, you can support
-its development through the donation links in this repository. The extension is
-free; donations only help keep maintenance moving.
+its development on Ko-fi. The extension is free; donations only help keep
+maintenance moving.
 
 ## Notes
 
-- Do not put API keys, tokens, or private account data in donation links.
-- If you use GitHub Sponsors, also update `.github/FUNDING.yml`.
+- Donations do not unlock extra features.
+- Do not put API keys, tokens, or private account data in donation messages.
 - If you accept donations commercially, check your local tax obligations.

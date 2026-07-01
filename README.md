@@ -123,16 +123,14 @@ publisher ID and replace the `publisher` field in `package.json`.
 
 ## Support the project
 
-Codex Gestion is free. If it saves you time, donations are welcome but optional:
-see `DONATE.md`.
+Codex Gestion is free. If it saves you time, donations are welcome but optional.
 
-Suggested donation platforms:
+<p>
+  <a href="https://ko-fi.com/jacom15"><img alt="Support on Ko-fi" src="https://ko-fi.com/img/githubbutton_sm.svg"></a>
+</p>
 
-- GitHub Sponsors
-- Ko-fi
-- Buy Me a Coffee
-- PayPal.Me
-- Stripe Payment Link
+Donations do not unlock extra features; they just help keep maintenance moving.
+See `DONATE.md` for details.
 
 ## License
 
