@@ -1,0 +1,14 @@
+.git/**
+.gitignore
+.github/**
+.vscode/**
+.codex-local-stats/**
+.codex-gestion/**
+dist/**
+node_modules/**
+scripts/**
+tests/**
+debug.log
+*.log
+*.vsix
+package-lock.json

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.codex-local-stats/
+.codex-gestion/
+.vscode/
+*.vsix
+*.log
+.env
+.env.*

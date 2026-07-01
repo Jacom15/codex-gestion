@@ -1,0 +1,111 @@
+{
+  "name": "codex-gestion",
+  "displayName": "Codex Gestion",
+  "description": "Panel local para visualizar cuotas, sesiones y cuentas de Codex en VS Code.",
+  "version": "0.0.2",
+  "publisher": "local",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Visualization"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:codexGestion.refresh",
+    "onCommand:codexGestion.showDetails",
+    "onCommand:codexGestion.showDashboard",
+    "onCommand:codexGestion.manageAccounts",
+    "onCommand:codexGestion.switchAccount",
+    "onCommand:codexGestion.addAccount",
+    "onCommand:codexGestion.openProjectContext",
+    "onCommand:codexGestion.openCodex",
+    "onCommand:codexGestion.showDiagnostics"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codexGestion.refresh",
+        "title": "Codex Gestion: Actualizar"
+      },
+      {
+        "command": "codexGestion.showDetails",
+        "title": "Codex Gestion: Abrir panel"
+      },
+      {
+        "command": "codexGestion.showDashboard",
+        "title": "Codex Gestion: Abrir panel visual"
+      },
+      {
+        "command": "codexGestion.manageAccounts",
+        "title": "Codex Gestion: Gestionar cuentas"
+      },
+      {
+        "command": "codexGestion.switchAccount",
+        "title": "Codex Gestion: Cambiar cuenta"
+      },
+      {
+        "command": "codexGestion.addAccount",
+        "title": "Codex Gestion: Agregar cuenta"
+      },
+      {
+        "command": "codexGestion.openProjectContext",
+        "title": "Codex Gestion: Abrir contexto del proyecto"
+      },
+      {
+        "command": "codexGestion.openCodex",
+        "title": "Codex Gestion: Abrir Codex / Iniciar sesion"
+      },
+      {
+        "command": "codexGestion.showDiagnostics",
+        "title": "Codex Gestion: Ver diagnostico"
+      }
+    ],
+    "configuration": {
+      "title": "Codex Gestion",
+      "properties": {
+        "codexGestion.refreshIntervalSeconds": {
+          "type": "number",
+          "default": 30,
+          "minimum": 5,
+          "description": "Cada cuantos segundos se actualizan los datos locales de Codex."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "clean": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/clean.ps1",
+    "package": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package.ps1",
+    "install:local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install.ps1",
+    "test": "node tests/run.js && node tests/smoke.js",
+    "publish:marketplace": "vsce publish"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.6.2"
+  },
+  "dependencies": {
+    "chart.js": "^4.5.1"
+  },
+  "keywords": [
+    "codex",
+    "usage",
+    "quota",
+    "rate-limit",
+    "accounts",
+    "dashboard"
+  ],
+  "galleryBanner": {
+    "color": "#151515",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jacom15/codex-gestion.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Jacom15/codex-gestion/issues"
+  },
+  "homepage": "https://github.com/Jacom15/codex-gestion#readme"
+}

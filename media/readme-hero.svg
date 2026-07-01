@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="520" viewBox="0 0 1280 520" role="img" aria-labelledby="title desc">
+  <title id="title">Codex Gestion hero</title>
+  <desc id="desc">A polished VS Code dashboard preview for Codex quota and account management.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="520" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#101112"/>
+      <stop offset="0.5" stop-color="#17191c"/>
+      <stop offset="1" stop-color="#0f1720"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="180" y1="120" x2="1080" y2="440" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6ee7b7"/>
+      <stop offset="0.55" stop-color="#60a5fa"/>
+      <stop offset="1" stop-color="#c084fc"/>
+    </linearGradient>
+    <filter id="soft" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <rect width="1280" height="520" rx="28" fill="url(#bg)"/>
+  <path d="M0 420 C230 350 310 500 530 420 C770 333 910 160 1280 210 L1280 520 L0 520 Z" fill="#111827" opacity="0.62"/>
+  <circle cx="1054" cy="108" r="180" fill="#0f766e" opacity="0.10"/>
+  <circle cx="104" cy="412" r="170" fill="#2563eb" opacity="0.10"/>
+
+  <g transform="translate(80 82)">
+    <rect width="462" height="356" rx="22" fill="#1f1f1f" stroke="#323232" filter="url(#soft)"/>
+    <rect x="28" y="26" width="406" height="36" rx="10" fill="#151515" stroke="#2f2f2f"/>
+    <circle cx="51" cy="44" r="7" fill="#4ec9b0"/>
+    <text x="70" y="49" font-family="Inter, Segoe UI, Arial" font-size="15" font-weight="700" fill="#f3f4f6">Yeray-Personal</text>
+    <text x="348" y="49" font-family="Inter, Segoe UI, Arial" font-size="12" font-weight="700" fill="#9ca3af">PLUS</text>
+
+    <g transform="translate(28 92)">
+      <circle cx="82" cy="82" r="64" fill="none" stroke="#3f3f46" stroke-width="18"/>
+      <path d="M82 18a64 64 0 1 1-54.7 97.2" fill="none" stroke="#7dd87d" stroke-width="18" stroke-linecap="round"/>
+      <circle cx="82" cy="82" r="42" fill="#171717" stroke="#313131"/>
+      <text x="82" y="82" text-anchor="middle" font-family="Inter, Segoe UI, Arial" font-size="28" font-weight="800" fill="#f3f4f6">58%</text>
+      <text x="82" y="105" text-anchor="middle" font-family="Inter, Segoe UI, Arial" font-size="11" font-weight="700" fill="#9ca3af">LIBRE</text>
+      <text x="184" y="50" font-family="Inter, Segoe UI, Arial" font-size="15" font-weight="800" fill="#cbd5e1">Cuota de 5h</text>
+      <text x="184" y="88" font-family="Inter, Segoe UI, Arial" font-size="32" font-weight="800" fill="#f8fafc">58% disponible</text>
+      <circle cx="188" cy="118" r="5" fill="#7dd87d"/><text x="201" y="123" font-family="Inter, Segoe UI, Arial" font-size="13" fill="#cbd5e1">58% libre</text>
+      <circle cx="284" cy="118" r="5" fill="#71717a"/><text x="297" y="123" font-family="Inter, Segoe UI, Arial" font-size="13" fill="#cbd5e1">42% usado</text>
+      <text x="184" y="154" font-family="Inter, Segoe UI, Arial" font-size="13" fill="#cbd5e1">Se renueva hoy a las 01:06 PM</text>
+    </g>
+  </g>
+
+  <g transform="translate(590 80)">
+    <text x="0" y="34" font-family="Inter, Segoe UI, Arial" font-size="56" font-weight="850" fill="#f8fafc">Codex Gestion</text>
+    <text x="2" y="76" font-family="Inter, Segoe UI, Arial" font-size="22" font-weight="650" fill="#9ca3af">Cuotas claras. Cuentas locales. Cero teatro.</text>
+    <rect x="2" y="112" width="160" height="34" rx="17" fill="#10241f" stroke="#2dd4bf" opacity="0.95"/>
+    <text x="82" y="134" text-anchor="middle" font-family="Inter, Segoe UI, Arial" font-size="13" font-weight="800" fill="#99f6e4">Local only</text>
+    <rect x="176" y="112" width="176" height="34" rx="17" fill="#111827" stroke="#60a5fa" opacity="0.95"/>
+    <text x="264" y="134" text-anchor="middle" font-family="Inter, Segoe UI, Arial" font-size="13" font-weight="800" fill="#bfdbfe">Chart.js dashboard</text>
+    <rect x="366" y="112" width="150" height="34" rx="17" fill="#1f172a" stroke="#c084fc" opacity="0.95"/>
+    <text x="441" y="134" text-anchor="middle" font-family="Inter, Segoe UI, Arial" font-size="13" font-weight="800" fill="#e9d5ff">Multi-account</text>
+
+    <g transform="translate(0 190)">
+      <rect width="560" height="80" rx="16" fill="#1f1f1f" stroke="#333"/>
+      <rect x="22" y="22" width="36" height="36" rx="10" fill="url(#accent)"/>
+      <text x="78" y="34" font-family="Inter, Segoe UI, Arial" font-size="15" font-weight="800" fill="#f3f4f6">Status-bar tooltip</text>
+      <text x="78" y="56" font-family="Inter, Segoe UI, Arial" font-size="13" fill="#9ca3af">Resumen visual rapido sin abrir el panel.</text>
+    </g>
+    <g transform="translate(0 288)">
+      <rect width="560" height="80" rx="16" fill="#1f1f1f" stroke="#333"/>
+      <rect x="22" y="22" width="36" height="36" rx="10" fill="url(#accent)"/>
+      <text x="78" y="34" font-family="Inter, Segoe UI, Arial" font-size="15" font-weight="800" fill="#f3f4f6">Cambio de cuenta asistido</text>
+      <text x="78" y="56" font-family="Inter, Segoe UI, Arial" font-size="13" fill="#9ca3af">SecretStorage, guardas y recarga automatica.</text>
+    </g>
+  </g>
+</svg>
