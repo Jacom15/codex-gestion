@@ -3,7 +3,8 @@
   "displayName": "Codex Gestion",
   "description": "Panel local para visualizar cuotas, sesiones y cuentas de Codex en VS Code.",
   "version": "0.0.2",
-  "publisher": "local",
+  "publisher": "jacom15",
+  "icon": "media/codex-gestion-logo.png",
   "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"

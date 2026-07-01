@@ -12,3 +12,4 @@ debug.log
 *.log
 *.vsix
 package-lock.json
+media/*.svg

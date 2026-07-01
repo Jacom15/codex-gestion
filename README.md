@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="media/codex-gestion-logo.svg" width="112" alt="Codex Gestion logo">
+  <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/codex-gestion-logo.png" width="112" alt="Codex Gestion logo">
 </p>
 
 <h1 align="center">Codex Gestion</h1>
@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <img src="media/readme-hero.svg" alt="Codex Gestion hero preview">
+  <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/readme-hero.png" alt="Codex Gestion hero preview">
 </p>
 
 Codex Gestion gives Codex power users a clean local view of usage, quota windows,
@@ -28,7 +28,7 @@ how much quota is left, and when does it reset?
 
 | Dashboard | Status tooltip |
 | --- | --- |
-| <img src="media/readme-dashboard.svg" alt="Dashboard preview"> | <img src="media/readme-tooltip.svg" alt="Tooltip preview"> |
+| <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/readme-dashboard.png" alt="Dashboard preview"> | <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/readme-tooltip.png" alt="Tooltip preview"> |
 
 ## Highlights
 
@@ -118,16 +118,13 @@ dist\codex-gestion-0.0.2.vsix
 
 ## Publishing
 
-See `PUBLISHING.md`. Before publishing publicly, choose your Marketplace
-publisher ID and replace the `publisher` field in `package.json`.
+See `PUBLISHING.md`. The current Marketplace publisher is `jacom15`.
 
 ## Support the project
 
 Codex Gestion is free. If it saves you time, donations are welcome but optional.
 
-<p>
-  <a href="https://ko-fi.com/jacom15"><img alt="Support on Ko-fi" src="https://ko-fi.com/img/githubbutton_sm.svg"></a>
-</p>
+Support: <https://ko-fi.com/jacom15>
 
 Donations do not unlock extra features; they just help keep maintenance moving.
 See `DONATE.md` for details.
@@ -135,3 +132,4 @@ See `DONATE.md` for details.
 ## License
 
 MIT. See `LICENSE`.
+

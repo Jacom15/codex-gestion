@@ -3,6 +3,7 @@ dist/
 .codex-local-stats/
 .codex-gestion/
 .vscode/
+.tmp-chrome-*/
 *.vsix
 *.log
 .env
