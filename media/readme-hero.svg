@@ -25,7 +25,7 @@
     <rect width="462" height="356" rx="22" fill="#1f1f1f" stroke="#323232" filter="url(#soft)"/>
     <rect x="28" y="26" width="406" height="36" rx="10" fill="#151515" stroke="#2f2f2f"/>
     <circle cx="51" cy="44" r="7" fill="#4ec9b0"/>
-    <text x="70" y="49" font-family="Inter, Segoe UI, Arial" font-size="15" font-weight="700" fill="#f3f4f6">Yeray-Personal</text>
+    <text x="70" y="49" font-family="Inter, Segoe UI, Arial" font-size="15" font-weight="700" fill="#f3f4f6">Cuenta principal</text>
     <text x="348" y="49" font-family="Inter, Segoe UI, Arial" font-size="12" font-weight="700" fill="#9ca3af">PLUS</text>
 
     <g transform="translate(28 92)">

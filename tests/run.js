@@ -1,4 +1,4 @@
-﻿const assert = require('assert');
+const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -56,14 +56,14 @@ const jwtAuthPayload = {
     account_id: 'account-jwt',
     access_token: 'secret-access',
     refresh_token: 'secret-refresh',
-    id_token: fakeJwt({ email: 'ydediego@vicomtech.org', name: 'Yeray' })
+    id_token: fakeJwt({ email: 'user@example.com', name: 'Codex User' })
   }
 };
 const jwtAccount = __test.accountFromAuthPayload(jwtAuthPayload);
-assert.strictEqual(jwtAccount.email, 'ydediego@vicomtech.org');
-assert.strictEqual(jwtAccount.name, 'Yeray');
-assert.strictEqual(jwtAccount.label, 'ydediego@vicomtech.org');
-assert.strictEqual(__test.accountDisplayLabel(jwtAccount), 'ydediego@vicomtech.org');
+assert.strictEqual(jwtAccount.email, 'user@example.com');
+assert.strictEqual(jwtAccount.name, 'Codex User');
+assert.strictEqual(jwtAccount.label, 'user@example.com');
+assert.strictEqual(__test.accountDisplayLabel(jwtAccount), 'user@example.com');
 const loginCommand = __test.buildCodexLoginCommand(fakeCodexPath);
 if (process.platform === 'win32') {
   assert.strictEqual(loginCommand, `& '${fakeCodexPath}' login`);

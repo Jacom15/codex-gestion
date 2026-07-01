@@ -39,7 +39,7 @@
   </g>
 
   <rect x="70" y="466" width="980" height="62" rx="12" fill="#202020" stroke="#333"/>
-  <text x="94" y="493" font-family="Inter, Segoe UI, Arial" font-size="14" font-weight="800" fill="#f3f4f6">Yeray-Personal</text>
+  <text x="94" y="493" font-family="Inter, Segoe UI, Arial" font-size="14" font-weight="800" fill="#f3f4f6">Cuenta principal</text>
   <text x="94" y="514" font-family="Inter, Segoe UI, Arial" font-size="12" fill="#9ca3af">CHATGPT - Plan local PLUS - credencial guardada en SecretStorage</text>
   <rect x="870" y="482" width="84" height="28" rx="7" fill="#2d2d30" stroke="#444"/><text x="912" y="501" text-anchor="middle" font-family="Inter, Segoe UI, Arial" font-size="12" font-weight="700" fill="#e5e7eb">Renombrar</text>
 </svg>
