@@ -1,3 +1,4 @@
+const { t } = require('../i18n');
 function finiteNumber(value) {
   if (value === null || value === undefined || value === '') return null;
   const number = Number(value);
@@ -41,11 +42,11 @@ function availablePercent(usedPercent) {
 
 function formatReset(epochSeconds) {
   const epoch = finiteNumber(epochSeconds);
-  if (epoch === null) return 'sin datos';
+  if (epoch === null) return t('resetNoData');
 
   const remainingMs = Math.max(0, epoch * 1000 - Date.now());
   const totalMinutes = Math.ceil(remainingMs / 60000);
-  if (totalMinutes < 1) return 'ahora';
+  if (totalMinutes < 1) return t('resetNow');
   if (totalMinutes < 60) return `${totalMinutes} min`;
 
   const hours = Math.floor(totalMinutes / 60);
@@ -58,7 +59,7 @@ function formatReset(epochSeconds) {
 
 function formatResetMoment(epochSeconds) {
   const epoch = finiteNumber(epochSeconds);
-  if (epoch === null) return 'hora desconocida';
+  if (epoch === null) return t('resetUnknown');
 
   const reset = new Date(epoch * 1000);
   const now = new Date();
@@ -68,8 +69,8 @@ function formatResetMoment(epochSeconds) {
   const nextDay = reset.toDateString() === tomorrow.toDateString();
   const time = reset.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  if (sameDay) return `hoy a las ${time}`;
-  if (nextDay) return `manana a las ${time}`;
+  if (sameDay) return t('todayAt', { time });
+  if (nextDay) return t('tomorrowAt', { time });
   return reset.toLocaleString([], {
     weekday: 'short',
     day: '2-digit',
@@ -106,22 +107,22 @@ function getUsageAdvice(stats, authStatus) {
   if (authStatus?.state === 'invalid') {
     return {
       tone: 'danger',
-      title: 'La sesion de Codex necesita atencion',
-      detail: authStatus.message || 'Codex no pudo validar la cuenta activa. Inicia sesion otra vez antes de empezar un trabajo largo.'
+      title: t('adviceInvalidTitle'),
+      detail: authStatus.message || t('adviceInvalidDetail')
     };
   }
   if (authStatus?.state === 'missing') {
     return {
       tone: 'danger',
-      title: 'No hay sesion activa de Codex',
-      detail: 'Abre Codex e inicia sesion para que los chats nuevos usen una cuenta valida.'
+      title: t('adviceMissingTitle'),
+      detail: t('adviceMissingDetail')
     };
   }
   if (authStatus?.state === 'unknown' || authStatus?.state === 'skipped') {
     return {
       tone: 'warning',
-      title: 'Uso local disponible, sesion sin comprobar',
-      detail: authStatus.message || 'Las cuotas vienen de datos locales. Abre Codex si el panel oficial pide iniciar sesion.'
+      title: t('adviceUncheckedTitle'),
+      detail: authStatus.message || t('adviceUncheckedDetail')
     };
   }
 
@@ -131,15 +132,15 @@ function getUsageAdvice(stats, authStatus) {
   if (Number.isFinite(primary) && primary >= 95) {
     return {
       tone: 'danger',
-      title: 'La cuota de 5 horas esta casi agotada',
-      detail: 'Conviene esperar a la proxima renovacion o cambiar de cuenta antes de iniciar trabajo largo.'
+      title: t('advicePrimaryLowTitle'),
+      detail: t('advicePrimaryLowDetail')
     };
   }
   if (Number.isFinite(secondary) && secondary >= 90) {
     return {
       tone: 'danger',
-      title: 'La cuota semanal esta casi agotada',
-      detail: 'Reserva lo disponible para tareas importantes hasta que se renueve.'
+      title: t('adviceWeeklyLowTitle'),
+      detail: t('adviceWeeklyLowDetail')
     };
   }
   if (
@@ -148,14 +149,14 @@ function getUsageAdvice(stats, authStatus) {
   ) {
     return {
       tone: 'warning',
-      title: 'Uso elevado, pero todavia hay margen',
-      detail: 'Puedes continuar. Revisa la hora de renovacion antes de comenzar una tarea larga.'
+      title: t('adviceHighTitle'),
+      detail: t('adviceHighDetail')
     };
   }
   return {
     tone: 'good',
-    title: 'Todo en buen estado',
-    detail: 'Tienes margen suficiente para seguir trabajando con la cuenta activa.'
+    title: t('adviceGoodTitle'),
+    detail: t('adviceGoodDetail')
   };
 }
 

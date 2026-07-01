@@ -6,6 +6,7 @@ const commands = new Map();
 const executedCommands = [];
 const storage = new Map();
 const secrets = new Map();
+let languageSetting = 'auto';
 let dashboardPanel = null;
 let dashboardMessageHandler = null;
 const statusItem = {
@@ -32,6 +33,7 @@ class MarkdownString {
 
 const disposable = () => ({ dispose() {} });
 const vscodeMock = {
+  env: { language: 'es' },
   MarkdownString,
   ThemeColor: class ThemeColor {
     constructor(id) {
@@ -62,6 +64,7 @@ const vscodeMock = {
     getConfiguration() {
       return {
         get(name, fallback) {
+          if (name === 'language') return languageSetting;
           return fallback;
         }
       };
@@ -198,6 +201,16 @@ const context = {
   assert.match(dashboardPanel.webview.html, />Eliminar<\/button>/);
   assert.doesNotMatch(dashboardPanel.webview.html, /Editar alias/);
   assert.doesNotMatch(dashboardPanel.webview.html, /Codex Switch/);
+
+  languageSetting = 'en';
+  await commands.get('codexGestion.showDashboard')();
+  assert.match(dashboardPanel.webview.html, /Codex usage panel/);
+  assert.match(dashboardPanel.webview.html, /Account management/);
+  assert.match(dashboardPanel.webview.html, /Switch account/);
+  assert.match(dashboardPanel.webview.html, /Add account/);
+  assert.match(dashboardPanel.webview.html, />Rename<\/button>/);
+  assert.match(dashboardPanel.webview.html, />Delete<\/button>/);
+  assert.doesNotMatch(dashboardPanel.webview.html, /Panel de uso de Codex/);
 
   extension.deactivate();
   for (const item of context.subscriptions) {

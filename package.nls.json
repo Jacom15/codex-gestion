@@ -1,0 +1,17 @@
+{
+  "extension.description": "Local dashboard for viewing Codex quotas, sessions, and accounts in VS Code.",
+  "command.refresh": "Codex Gestion: Refresh",
+  "command.showDetails": "Codex Gestion: Open panel",
+  "command.showDashboard": "Codex Gestion: Open visual panel",
+  "command.manageAccounts": "Codex Gestion: Manage accounts",
+  "command.switchAccount": "Codex Gestion: Switch account",
+  "command.addAccount": "Codex Gestion: Add account",
+  "command.openProjectContext": "Codex Gestion: Open project context",
+  "command.openCodex": "Codex Gestion: Open Codex / Sign in",
+  "command.showDiagnostics": "Codex Gestion: View diagnostics",
+  "config.refreshIntervalSeconds": "How often local Codex data is refreshed, in seconds.",
+  "config.language": "Language used by Codex Gestion UI.",
+  "config.language.auto": "Use the VS Code display language.",
+  "config.language.es": "Spanish",
+  "config.language.en": "English"
+}

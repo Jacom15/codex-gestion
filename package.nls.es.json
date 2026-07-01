@@ -1,0 +1,17 @@
+{
+  "extension.description": "Panel local para visualizar cuotas, sesiones y cuentas de Codex en VS Code.",
+  "command.refresh": "Codex Gestion: Actualizar",
+  "command.showDetails": "Codex Gestion: Abrir panel",
+  "command.showDashboard": "Codex Gestion: Abrir panel visual",
+  "command.manageAccounts": "Codex Gestion: Gestionar cuentas",
+  "command.switchAccount": "Codex Gestion: Cambiar cuenta",
+  "command.addAccount": "Codex Gestion: Agregar cuenta",
+  "command.openProjectContext": "Codex Gestion: Abrir contexto del proyecto",
+  "command.openCodex": "Codex Gestion: Abrir Codex / Iniciar sesion",
+  "command.showDiagnostics": "Codex Gestion: Ver diagnostico",
+  "config.refreshIntervalSeconds": "Cada cuantos segundos se actualizan los datos locales de Codex.",
+  "config.language": "Idioma usado por la interfaz de Codex Gestion.",
+  "config.language.auto": "Usar el idioma de VS Code.",
+  "config.language.es": "Espanol",
+  "config.language.en": "Ingles"
+}

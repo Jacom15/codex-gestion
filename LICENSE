@@ -1,21 +1,55 @@
-MIT License
+Codex Gestion Source-Available License
+Version 1.0 - July 1, 2026
 
-Copyright (c) 2026
+Copyright (c) 2026 Jacom15.
+All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This software is made available so users can install Codex Gestion and review
+its source code for transparency, security, and learning purposes.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+Permitted uses:
+
+1. You may install and use the official Codex Gestion extension for personal,
+   educational, or professional work.
+2. You may view and study the source code.
+3. You may share links to the official repository or Marketplace listing.
+
+Restrictions:
+
+1. You may not copy, modify, merge, publish, distribute, sublicense, sell,
+   repackage, or otherwise redistribute this software or substantial portions
+   of it without prior written permission from the copyright holder.
+2. You may not publish a modified version, fork, clone, competing extension, or
+   derivative extension based on this software without prior written permission.
+3. You may not remove or alter copyright, license, author, donation, or project
+   attribution notices.
+4. You may not use the project name, logo, Marketplace identity, or branding to
+   imply endorsement or an official relationship without prior written
+   permission.
+
+Contributions:
+
+Unless agreed otherwise in writing, contributions submitted to this repository
+may be used by the project owner under this license and in future versions of
+Codex Gestion.
+
+Third-party software:
+
+Third-party dependencies and bundled libraries remain governed by their own
+licenses. This license applies only to Codex Gestion code and assets owned by
+Jacom15.
+
+No warranty:
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM,
+OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+License history:
+
+Versions previously published under the MIT License remain available under the
+terms that applied to those specific versions. This license applies to this
+version and later versions unless replaced by a newer license notice.

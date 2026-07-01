@@ -53,6 +53,8 @@ const {
   readSessionMeta
 } = require('./sessions/reader');
 const { buildCodexLoginCommand, findCodexExecutable } = require('./codex/cli');
+const i18n = require('./i18n');
+const { t, languageTag, plural } = i18n;
 let latestStats = null;
 let refreshTimer = null;
 let authWatchTimer = null;
@@ -507,10 +509,10 @@ function accountDisplayLabel(account) {
 function planDisplay(stats) {
   const plan = stats?.rateLimits?.plan_type
     ? String(stats.rateLimits.plan_type).toUpperCase()
-    : 'Pendiente';
-  if (!stats) return { label: plan, detail: 'sin datos locales' };
-  if (stats.isSnapshotFallback) return { label: plan, detail: 'resumen guardado' };
-  return { label: plan, detail: 'dato local observado' };
+    : t('pending');
+  if (!stats) return { label: plan, detail: t('localNoData') };
+  if (stats.isSnapshotFallback) return { label: plan, detail: t('localSavedSummary') };
+  return { label: plan, detail: t('localObservedData') };
 }
 
 function statsBelongsToAnotherProfile(profileId, profiles, stats) {
@@ -635,7 +637,7 @@ function buildTooltip(stats) {
   const rateLimits = stats.rateLimits;
   const primary = rateLimits?.primary;
   const secondary = rateLimits?.secondary;
-  const accountLabel = stats.accountLabel || 'Cuenta de Codex';
+  const accountLabel = stats.accountLabel || t('accountDefault');
   const planInfo = planDisplay(stats);
   const updatedAt = new Date(lastRefreshAt || Date.now()).toLocaleTimeString([], {
     hour: '2-digit',
@@ -644,25 +646,25 @@ function buildTooltip(stats) {
 
   tooltip.appendMarkdown(
     `### $(account) ${escapeMarkdown(accountLabel)}\n\n` +
-    `<sub>Plan local ${escapeHtml(planInfo.label)}</sub>\n\n` +
-    `[$(dashboard) Abrir panel](command:codexGestion.showDashboard) &nbsp;&nbsp; ` +
-    `[$(refresh) Actualizar](command:codexGestion.refresh)\n\n` +
+    `<sub>${escapeHtml(t('localPlan', { label: planInfo.label }))}</sub>\n\n` +
+    `[$(dashboard) ${escapeMarkdown(t('openPanel'))}](command:codexGestion.showDashboard) &nbsp;&nbsp; ` +
+    `[$(refresh) ${escapeMarkdown(t('refresh'))}](command:codexGestion.refresh)\n\n` +
     '---\n\n'
   );
 
   if (latestAuthStatus.state !== 'ok') {
     tooltip.appendMarkdown(
-      `$(warning) **Sesion:** ${escapeMarkdown(latestAuthStatus.message || latestAuthStatus.state)}\n\n`
+      `$(warning) **${escapeMarkdown(t('session'))}:** ${escapeMarkdown(latestAuthStatus.message || latestAuthStatus.state)}\n\n`
     );
   }
 
-  tooltip.appendMarkdown(formatTooltipQuota('Cuota 5 h', primary));
+  tooltip.appendMarkdown(formatTooltipQuota(t('quota5h'), primary));
   tooltip.appendMarkdown('---\n\n');
-  tooltip.appendMarkdown(formatTooltipQuota('Cuota 7 dias', secondary));
+  tooltip.appendMarkdown(formatTooltipQuota(t('quota7d'), secondary));
   tooltip.appendMarkdown('---\n\n');
   tooltip.appendMarkdown(
-    `<sub>Actualizado ${escapeHtml(updatedAt)} ` +
-    `${stats.isSnapshotFallback ? '&nbsp;|&nbsp; resumen guardado ' : ''}` +
+    `<sub>${escapeHtml(t('updated', { time: updatedAt }))} ` +
+    `${stats.isSnapshotFallback ? `&nbsp;|&nbsp; ${escapeHtml(t('savedSummary'))} ` : ''}` +
     `&nbsp;|&nbsp; Codex Gestion v${escapeHtml(extensionContext.extension.packageJSON.version)}</sub>`
   );
   return tooltip;
@@ -672,18 +674,18 @@ function formatTooltipQuota(label, limit) {
   const used = finiteNumber(limit?.used_percent);
   const usedPercent = used === null ? null : clampPercent(used);
   const available = usedPercent === null ? null : 100 - usedPercent;
-  const resetLabel = limit ? formatResetMoment(limit.resets_at) : 'Sin datos';
+  const resetLabel = limit ? formatResetMoment(limit.resets_at) : t('noData');
 
   if (usedPercent === null || available === null) {
     return (
-      `**${escapeMarkdown(label)}** &nbsp; <sub>Renueva ${escapeMarkdown(resetLabel)}</sub>\n\n` +
-      '<sub>Sin lectura visual todavia</sub>\n\n'
+      `**${escapeMarkdown(label)}** &nbsp; <sub>${escapeMarkdown(t('renews', { value: resetLabel }))}</sub>\n\n` +
+      `<sub>${escapeHtml(t('noVisualReading'))}</sub>\n\n`
     );
   }
 
   return (
     tooltipQuotaCard(label, usedPercent, available, resetLabel) +
-    `\n\n<sub>${escapeHtml(Math.round(usedPercent))}% usado &nbsp;|&nbsp; ${escapeHtml(Math.round(available))}% libre</sub>\n\n`
+    `\n\n<sub>${escapeHtml(Math.round(usedPercent))}% ${escapeHtml(t('used'))} &nbsp;|&nbsp; ${escapeHtml(Math.round(available))}% ${escapeHtml(t('free'))}</sub>\n\n`
   );
 }
 
@@ -702,16 +704,16 @@ function tooltipQuotaCard(label, usedPercent, availablePercentValue, resetLabel)
       <text x="230" y="23" fill="#a6a6a6" font-family="Segoe UI, Arial, sans-serif" font-size="10" text-anchor="end">${escapeHtml(resetLabel)}</text>
       <rect x="14" y="38" width="${trackWidth}" height="13" rx="6.5" fill="#3a3a3a"/>
       <rect x="14" y="38" width="${fillWidth}" height="13" rx="6.5" fill="${tone}"/>
-      <text x="14" y="70" fill="#a6a6a6" font-family="Segoe UI, Arial, sans-serif" font-size="11">${escapeHtml(used)}% usado</text>
-      <text x="230" y="70" fill="#f3f3f3" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" text-anchor="end">${escapeHtml(available)}% libre</text>
+      <text x="14" y="70" fill="#a6a6a6" font-family="Segoe UI, Arial, sans-serif" font-size="11">${escapeHtml(used)}% ${escapeHtml(t('used'))}</text>
+      <text x="230" y="70" fill="#f3f3f3" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" text-anchor="end">${escapeHtml(available)}% ${escapeHtml(t('free'))}</text>
     </svg>`;
   const encoded = Buffer.from(svg, 'utf8').toString('base64');
-  return `<img src="data:image/svg+xml;base64,${encoded}" alt="${escapeHtml(label)}: ${escapeHtml(available)}% libre" width="${width}" height="${height}">`;
+  return `<img src="data:image/svg+xml;base64,${encoded}" alt="${escapeHtml(label)}: ${escapeHtml(available)}% ${escapeHtml(t('free'))}" width="${width}" height="${height}">`;
 }
 
 function tooltipQuotaBar(usedPercent, availablePercentValue) {
   if (usedPercent === null || availablePercentValue === null) {
-    return '<sub>Sin lectura visual todavia</sub>';
+    return `<sub>${escapeHtml(t('noVisualReading'))}</sub>`;
   }
 
   const used = Math.round(clampPercent(usedPercent));
@@ -722,8 +724,8 @@ function tooltipQuotaBar(usedPercent, availablePercentValue) {
   const bar = '#'.repeat(availableSegments) + '-'.repeat(usedSegments);
 
   return (
-    `<code>[${bar}]</code> &nbsp; **${escapeHtml(available)}% libre**\n\n` +
-    `<sub>${escapeHtml(used)}% usado</sub>`
+    `<code>[${bar}]</code> &nbsp; **${escapeHtml(available)}% ${escapeHtml(t('free'))}**\n\n` +
+    `<sub>${escapeHtml(used)}% ${escapeHtml(t('used'))}</sub>`
   );
 }
 
@@ -741,17 +743,17 @@ function buildEmptyTooltip() {
   tooltip.appendMarkdown('### $(account) Codex Gestion\n\n');
   tooltip.appendMarkdown(
     latestError
-      ? `$(error) **No se pudo leer el uso**  \n${escapeMarkdown(latestError.message)}\n\n`
-      : '$(info) **Todavia no hay datos de uso**  \nAbre Codex o inicia una conversacion para comenzar.\n\n'
+      ? `$(error) **${escapeMarkdown(t('readUsageError'))}**  \n${escapeMarkdown(latestError.message)}\n\n`
+      : `$(info) **${escapeMarkdown(t('noUsageYet'))}**  \n${escapeMarkdown(t('openCodexOrStart'))}\n\n`
   );
   tooltip.appendMarkdown(
-    '[$(sign-in) Abrir Codex](command:codexGestion.openCodex) &nbsp; ' +
-    '[$(refresh) Actualizar](command:codexGestion.refresh) &nbsp; ' +
-    '[$(dashboard) Abrir panel](command:codexGestion.showDashboard)'
+    `[$(sign-in) ${escapeMarkdown(t('openCodex'))}](command:codexGestion.openCodex) &nbsp; ` +
+    `[$(refresh) ${escapeMarkdown(t('refresh'))}](command:codexGestion.refresh) &nbsp; ` +
+    `[$(dashboard) ${escapeMarkdown(t('openPanel'))}](command:codexGestion.showDashboard)`
   );
   if (latestError) {
     tooltip.appendMarkdown(
-      '\n\n[$(output) Diagnostico](command:codexGestion.showDiagnostics)'
+      `\n\n[$(output) ${escapeMarkdown(t('diagnostics'))}](command:codexGestion.showDiagnostics)`
     );
   }
   return tooltip;
@@ -761,10 +763,10 @@ function updateStatusBar(stats) {
   const authProblem = latestAuthStatus.state === 'invalid' || latestAuthStatus.state === 'missing';
   if (!stats) {
     statusItem.text = latestError
-      ? '$(warning) Error de Codex Stats'
+      ? `$(warning) ${t('codexStatsError')}`
       : authProblem
-        ? '$(warning) Codex sin sesion'
-        : '$(pulse) Codex sin datos';
+        ? `$(warning) ${t('codexNoSession')}`
+        : `$(pulse) ${t('codexNoData')}`;
     statusItem.tooltip = buildEmptyTooltip();
     statusItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
     statusItem.show();
@@ -776,14 +778,14 @@ function updateStatusBar(stats) {
 
   const primaryAvailable = availablePercent(primary?.used_percent);
   if (primaryAvailable !== null) {
-    pieces.push(`$(dashboard) 5h ${formatPercent(primaryAvailable)} libre`);
+    pieces.push(`$(dashboard) 5h ${formatPercent(primaryAvailable)} ${t('free')}`);
   }
   else pieces.push('$(pulse) Codex');
 
   statusItem.text = pieces.join(' | ');
   statusItem.tooltip = buildTooltip(stats);
   statusItem.accessibilityInformation = {
-    label: `Uso de Codex: ${pieces.join(', ')}. Pulsa para abrir el panel completo.`
+    label: t('accessibilityUsage', { summary: pieces.join(', ') })
   };
   statusItem.backgroundColor =
     authProblem
@@ -972,27 +974,27 @@ async function switchAccount() {
     .map(profile => ({
       label: `$(account) ${profile.label}`,
       description: profile.credentialsStored
-        ? 'Lista para activar'
-        : 'Solo historial',
+        ? t('savedAccountReady')
+        : t('historyOnly'),
       detail: profile.credentialsStored
         ? `Ultimo uso: ${new Date(profile.lastSeen).toLocaleString()}`
-        : 'Necesita iniciar sesion de nuevo para guardar su credencial.',
+        : t('needsLoginAgain'),
       profileId: profile.id,
       credentialsStored: Boolean(profile.credentialsStored)
     }));
 
   if (!items.length) {
     const action = await vscode.window.showInformationMessage(
-      'No hay otra cuenta guardada. Agrega una cuenta primero.',
-      'Agregar cuenta'
+      t('noOtherAccount'),
+      t('addAccount')
     );
-    if (action === 'Agregar cuenta') return addAccount();
+    if (action === t('addAccount')) return addAccount();
     return;
   }
 
   const selected = await vscode.window.showQuickPick(items, {
-    title: 'Cambiar cuenta de Codex',
-    placeHolder: 'Selecciona la cuenta que quieres activar'
+    title: t('switchAccountTitle'),
+    placeHolder: t('switchAccountPlaceholder')
   });
   if (!selected) return;
   if (selected.credentialsStored) return switchStoredAccount(selected.profileId);
@@ -1007,17 +1009,17 @@ async function addAccount() {
 
   const choice = await vscode.window.showInformationMessage(
     previousProfileId
-      ? 'Guardare la cuenta actual cifrada y abrire un login limpio para agregar otra cuenta.'
-      : 'Abrire un login limpio para agregar una cuenta de Codex.',
+      ? t('addAccountWithSave')
+      : t('addAccountClean'),
     { modal: true },
-    'Agregar cuenta'
+    t('addAccount')
   );
-  if (choice !== 'Agregar cuenta') return;
+  if (choice !== t('addAccount')) return;
 
   const storedProfileId = await storeCurrentCredentials();
   if (previousProfileId && storedProfileId !== previousProfileId) {
     vscode.window.showErrorMessage(
-      'No pude guardar la cuenta actual cifrada, asi que no voy a limpiar la sesion activa. Revisa SecretStorage de VS Code e intenta de nuevo.'
+      t('cannotSaveCurrentAccount')
     );
     return;
   }
@@ -1032,24 +1034,24 @@ async function addAccount() {
   latestAuthStatus = {
     state: 'missing',
     checkedAt: Date.now(),
-    message: 'Esperando el nuevo inicio de sesion de Codex.'
+    message: t('waitingNewLogin')
   };
   startLoginWatcher(previousProfileId);
   await refresh(false);
 
   const terminal = vscode.window.createTerminal({
-    name: 'Codex - Agregar cuenta',
+    name: t('addAccountTerminal'),
     isTransient: true
   });
   terminal.show(true);
   terminal.sendText(buildCodexLoginCommand(codexExecutable), true);
   if (!codexExecutable) {
     vscode.window.showWarningMessage(
-      'No encuentro el ejecutable de Codex. Instala o activa la extension oficial de ChatGPT/OpenAI, o agrega codex al PATH.'
+      t('codexExecutableMissing')
     );
   }
   vscode.window.showInformationMessage(
-    'Completa el inicio de sesion en el navegador. Guardare esa cuenta automaticamente cuando Codex actualice auth.json.'
+    t('finishBrowserLogin')
   );
 }
 
@@ -1067,10 +1069,10 @@ async function switchStoredAccount(profileId) {
     payload = JSON.parse(serialized);
     const storedAccount = accountFromAuthPayload(payload);
     if (!storedAccount.hasCredentials || accountProfileId(storedAccount) !== profileId) {
-      throw new Error('La credencial guardada no coincide con esta cuenta.');
+      throw new Error(t('storedCredentialMismatch'));
     }
   } catch (error) {
-    vscode.window.showErrorMessage(`No se pudo recuperar la cuenta: ${error.message}`);
+    vscode.window.showErrorMessage(t('cannotRecoverAccount', { message: error.message }));
     return;
   }
 
@@ -1101,11 +1103,11 @@ async function switchStoredAccount(profileId) {
       await refresh(false);
 
       const action = await vscode.window.showWarningMessage(
-        `${validation.reason} He restaurado la cuenta anterior para que Codex no quede roto.`,
-        'Iniciar sesion otra vez',
-        'Cerrar'
+        t('restoredPreviousAccount', { reason: validation.reason }),
+        t('loginAgain'),
+        t('close')
       );
-      if (action === 'Iniciar sesion otra vez') await addAccount();
+      if (action === t('loginAgain')) await addAccount();
       return;
     }
     await storeCurrentCredentials();
@@ -1116,7 +1118,7 @@ async function switchStoredAccount(profileId) {
       checkedAt: Date.now(),
       message: validation.skipped
         ? validation.reason
-        : 'Sesion validada por Codex CLI.'
+        : t('sessionValidated')
     };
     await refresh(false);
     await updateProjectContextFile('account-switch');
@@ -1126,7 +1128,7 @@ async function switchStoredAccount(profileId) {
     return;
   } catch (error) {
     clearAccountSwitchGuard(profileId);
-    vscode.window.showErrorMessage(`No se pudo cambiar de cuenta: ${error.message}`);
+    vscode.window.showErrorMessage(t('cannotSwitchAccount', { message: error.message }));
   }
 }
 
@@ -1135,13 +1137,13 @@ async function handleMissingCredentials(profileId) {
   if (!profile) return;
 
   const action = await vscode.window.showWarningMessage(
-    `"${profile.label}" todavia no tiene credencial cifrada guardada. Para activarla hay que iniciar sesion una vez con esa cuenta.`,
-    'Iniciar sesion',
-    'Renombrar',
-    'Cancelar'
+    t('missingEncryptedCredential', { label: profile.label }),
+    t('signIn'),
+    t('rename'),
+    t('cancel')
   );
-  if (action === 'Iniciar sesion') return addAccount();
-  if (action === 'Renombrar') return renameAccount(profileId);
+  if (action === t('signIn')) return addAccount();
+  if (action === t('rename')) return renameAccount(profileId);
 }
 
 async function handleAccountCard(profileId) {
@@ -1152,27 +1154,27 @@ async function handleAccountCard(profileId) {
 
   const actions = [
     ...(profile.id !== activeId && profile.credentialsStored ? [{
-      label: '$(arrow-swap) Activar cuenta',
+      label: `$(arrow-swap) ${t('activateAccount')}`,
       action: 'switch'
     }] : []),
     ...(profile.id !== activeId && !profile.credentialsStored ? [{
-      label: '$(sign-in) Iniciar sesion con esta cuenta',
-      description: 'Guarda la credencial despues del login',
+      label: `$(sign-in) ${t('signInWithAccount')}`,
+      description: t('saveCredentialAfterLogin'),
       action: 'login'
     }] : []),
     {
-      label: '$(edit) Cambiar nombre',
+      label: `$(edit) ${t('changeName')}`,
       action: 'rename'
     },
     ...(profile.id !== activeId ? [{
-      label: '$(trash) Eliminar',
+      label: `$(trash) ${t('delete')}`,
       action: 'delete'
     }] : [])
   ];
 
   const selected = await vscode.window.showQuickPick(actions, {
     title: profile.label,
-    placeHolder: 'Que quieres hacer con esta cuenta?'
+    placeHolder: t('accountActionPlaceholder')
   });
   if (!selected) return;
   if (selected.action === 'switch') return switchStoredAccount(profileId);
@@ -1187,10 +1189,10 @@ async function renameAccount(profileId) {
   if (!profile) return;
 
   const label = await vscode.window.showInputBox({
-    title: 'Cambiar alias de la cuenta',
-    prompt: 'Este alias solo se guarda localmente en Codex Gestion.',
+    title: t('renameAccountTitle'),
+    prompt: t('renameAccountPrompt'),
     value: profile.label,
-    validateInput: value => value.trim() ? undefined : 'Escribe un nombre para la cuenta.'
+    validateInput: value => value.trim() ? undefined : t('accountNameRequired')
   });
   if (label === undefined) return;
 
@@ -1211,7 +1213,7 @@ async function forgetAccount(profileId) {
   const activeId = account.hasCredentials ? accountProfileId(account) : '';
   if (!profileId || profileId === activeId) {
     vscode.window.showWarningMessage(
-      'La cuenta activa no se puede borrar del historial mientras siga iniciada.'
+      t('activeAccountCannotDelete')
     );
     return;
   }
@@ -1219,11 +1221,11 @@ async function forgetAccount(profileId) {
   const profile = getAccountProfiles().find(candidate => candidate.id === profileId);
   if (!profile) return;
   const confirmation = await vscode.window.showWarningMessage(
-    `Eliminar "${profile.label}"? Se borraran su historial y su credencial cifrada de este equipo.`,
+    t('deleteAccountConfirm', { label: profile.label }),
     { modal: true },
-    'Borrar'
+    t('deleteAction')
   );
-  if (confirmation !== 'Borrar') return;
+  if (confirmation !== t('deleteAction')) return;
 
   await extensionContext.secrets.delete(accountSecretKey(profileId));
   credentialHashes.delete(profileId);
@@ -1239,16 +1241,16 @@ async function clearInactiveAccounts() {
   const profiles = getAccountProfiles();
   const inactiveCount = profiles.filter(profile => profile.id !== activeId).length;
   if (!inactiveCount) {
-    vscode.window.showInformationMessage('No hay cuentas inactivas para borrar.');
+    vscode.window.showInformationMessage(t('noInactiveAccounts'));
     return;
   }
 
   const confirmation = await vscode.window.showWarningMessage(
-    `Borrar ${inactiveCount} cuenta${inactiveCount === 1 ? '' : 's'} inactiva${inactiveCount === 1 ? '' : 's'} del historial local?`,
+    t('deleteInactiveConfirm', { count: inactiveCount, plural: plural(inactiveCount) }),
     { modal: true },
-    'Borrar inactivas'
+    t('deleteInactiveAction')
   );
-  if (confirmation !== 'Borrar inactivas') return;
+  if (confirmation !== t('deleteInactiveAction')) return;
 
   for (const profile of profiles) {
     if (profile.id === activeId) continue;
@@ -1451,14 +1453,14 @@ async function openProjectContext(reason = 'manual') {
 function metricCard(label, value, percent, detail, hint, tone = 'accent') {
   const normalized = clampPercent(percent);
   const used = 100 - normalized;
-  const displayValue = value ?? 'Unavailable';
+  const displayValue = value ?? t('unavailable');
   return `
     <section class="metric-card ${tone}" data-chart-card data-available="${escapeHtml(normalized)}" data-used="${escapeHtml(used)}" data-tone="${escapeHtml(tone)}">
-      <div class="metric-chart-wrap" role="img" aria-label="${escapeHtml(label)}: ${escapeHtml(String(Math.round(normalized)))}% disponible">
+      <div class="metric-chart-wrap" role="img" aria-label="${escapeHtml(label)}: ${escapeHtml(t('availableValue', { value: Math.round(normalized) + '%' }))}">
         <canvas class="metric-chart" width="144" height="144"></canvas>
         <div class="metric-center">
           <strong>${Number.isFinite(Number(percent)) ? `${Math.round(Number(percent))}%` : '--'}</strong>
-          <span>libre</span>
+          <span>${escapeHtml(t('free'))}</span>
         </div>
       </div>
       <div class="metric-copy">
@@ -1467,8 +1469,8 @@ function metricCard(label, value, percent, detail, hint, tone = 'accent') {
         </div>
         <strong class="metric-value">${escapeHtml(displayValue)}</strong>
         <div class="quota-legend">
-          <span><i class="legend-dot free"></i>${escapeHtml(Math.round(normalized))}% libre</span>
-          <span><i class="legend-dot used"></i>${escapeHtml(Math.round(used))}% usado</span>
+          <span><i class="legend-dot free"></i>${escapeHtml(Math.round(normalized))}% ${escapeHtml(t('free'))}</span>
+          <span><i class="legend-dot used"></i>${escapeHtml(Math.round(used))}% ${escapeHtml(t('used'))}</span>
         </div>
         <span class="metric-detail">${escapeHtml(detail || '')}</span>
         <small class="metric-hint">${escapeHtml(hint || '')}</small>
@@ -1480,7 +1482,7 @@ function metricCard(label, value, percent, detail, hint, tone = 'accent') {
 function accountCards(activeProfileId) {
   const profiles = getAccountProfiles();
   if (!profiles.length) {
-    return '<p class="empty">Todavia no se ha detectado ninguna cuenta.</p>';
+    return `<p class="empty">${escapeHtml(t('noAccountsDetected'))}</p>`;
   }
 
   return profiles.map(profile => {
@@ -1490,12 +1492,12 @@ function accountCards(activeProfileId) {
     const isActive = profile.id === activeProfileId;
     const plan = snapshot?.plan
       ? `Plan local ${String(snapshot.plan).toUpperCase()}`
-      : 'Plan local pendiente';
+      : t('localPlanPending');
     const cardTitle = isActive
-      ? 'Gestionar cuenta activa'
+      ? t('manageActiveAccount')
       : profile.credentialsStored
-        ? 'Activar o gestionar esta cuenta'
-        : 'Gestionar historial de esta cuenta';
+        ? t('activateOrManageAccount')
+        : t('manageAccountHistory');
     const cardAction = ` data-action="accountCard" data-profile="${escapeHtml(profile.id)}" role="button" tabindex="0" title="${escapeHtml(cardTitle)}"`;
     return `
       <article class="account-card ${isActive ? 'active' : 'selectable'}"${cardAction}>
@@ -1503,23 +1505,23 @@ function accountCards(activeProfileId) {
           <div class="account-title">
             <strong>${escapeHtml(profile.label)}</strong>
             ${isActive
-              ? '<span class="badge">Activa ahora</span>'
+              ? `<span class="badge">${escapeHtml(t('activeNow'))}</span>`
               : profile.credentialsStored
-                ? '<span class="badge muted">Lista para usar</span>'
-                : '<span class="badge muted">Solo historial</span>'}
+                ? `<span class="badge muted">${escapeHtml(t('readyToUse'))}</span>`
+                : `<span class="badge muted">${escapeHtml(t('historyOnly'))}</span>`}
           </div>
           <span>${escapeHtml(String(profile.mode).toUpperCase())} - ${escapeHtml(plan)}</span>
         </div>
         <div class="account-usage">
-          <div><small>Cuota 5 h</small><strong>${primary == null ? 'Pendiente' : `${Math.round(100 - primary)}% libre`}</strong></div>
-          <div><small>Cuota 7 dias</small><strong>${secondary == null ? 'Pendiente' : `${Math.round(100 - secondary)}% libre`}</strong></div>
+          <div><small>${escapeHtml(t('quota5h'))}</small><strong>${primary == null ? escapeHtml(t('pending')) : `${Math.round(100 - primary)}% ${escapeHtml(t('free'))}`}</strong></div>
+          <div><small>${escapeHtml(t('quota7d'))}</small><strong>${secondary == null ? escapeHtml(t('pending')) : `${Math.round(100 - secondary)}% ${escapeHtml(t('free'))}`}</strong></div>
         </div>
-        <small class="account-seen">Ultimo uso: ${escapeHtml(new Date(profile.lastSeen).toLocaleString())}</small>
+        <small class="account-seen">${escapeHtml(t('lastUsed'))}: ${escapeHtml(new Date(profile.lastSeen).toLocaleString())}</small>
         <div class="account-actions">
-          <button class="small secondary" data-action="renameAccount" data-profile="${escapeHtml(profile.id)}">Renombrar</button>
+          <button class="small secondary" data-action="renameAccount" data-profile="${escapeHtml(profile.id)}">${escapeHtml(t('rename'))}</button>
           ${isActive
-            ? '<span class="active-note">Cuenta en uso</span>'
-            : `<button class="small danger-button" data-action="forgetAccount" data-profile="${escapeHtml(profile.id)}">Eliminar</button>`}
+            ? `<span class="active-note">${escapeHtml(t('accountInUse'))}</span>`
+            : `<button class="small danger-button" data-action="forgetAccount" data-profile="${escapeHtml(profile.id)}">${escapeHtml(t('delete'))}</button>`}
         </div>
       </article>
     `;
@@ -1558,44 +1560,44 @@ function dashboardHtml(webview) {
     .filter(value => Number.isFinite(value) && value * 1000 > Date.now());
   const nextReset = resetCandidates.length ? Math.min(...resetCandidates) : null;
   const stateTitle = latestError
-    ? 'No se pudo leer el uso de Codex'
+    ? t('cannotReadCodexUsage')
     : latestAuthStatus.state === 'invalid'
-      ? 'Sesion de Codex no validada'
+      ? t('codexSessionInvalid')
       : latestAuthStatus.state === 'missing'
-        ? 'Inicia sesion en Codex'
+        ? t('signInCodex')
         : latestStats
           ? latestStats.isSnapshotFallback
-            ? 'Ultimo resumen guardado'
-            : 'Tu uso, explicado de forma sencilla'
+            ? t('lastSavedSummary')
+            : t('usageExplained')
           : account.hasCredentials
-            ? 'Recogiendo datos de la cuenta'
-            : 'Inicia sesion en Codex';
+            ? t('collectingAccountData')
+            : t('signInCodex');
   const stateDetail = latestError
     ? latestError.message
     : latestAuthStatus.state === 'invalid' || latestAuthStatus.state === 'missing'
       ? latestAuthStatus.message
       : latestStats
         ? latestStats.isSnapshotFallback
-          ? `Guardado ${new Date(latestStats.timestamp).toLocaleString()}. Se actualizara cuando Codex escriba datos nuevos.`
-          : `Actualizado ${new Date(latestStats.timestamp).toLocaleString()}`
+          ? t('savedAt', { time: new Date(latestStats.timestamp).toLocaleString() })
+          : t('updatedAt', { time: new Date(latestStats.timestamp).toLocaleString() })
         : account.hasCredentials
-          ? 'Abre Codex con esta cuenta o inicia un chat nuevo para que aparezcan plan y cuotas.'
-          : 'Abre el panel oficial de Codex para iniciar sesion.';
+          ? t('openCodexForAccountData')
+          : t('openOfficialCodexLogin');
   const accountLabel = activeProfile?.label ||
     latestStats?.accountLabel ||
-    (account.hasCredentials ? accountDisplayLabel(account) : 'Sin sesion');
+    (account.hasCredentials ? accountDisplayLabel(account) : t('noSession'));
   const planInfo = planDisplay(latestStats);
   const panelSessionNotice = account.hasCredentials
-    ? `<div class="notice warning-notice"><strong>Cuenta local activa</strong>Codex Gestion lee el auth local. Si el panel oficial de Codex muestra otra cuenta, otra cuota o un boton de upgrade, recarga VS Code antes de escribir.</div>`
+    ? `<div class="notice warning-notice"><strong>${escapeHtml(t('activeLocalAccount'))}</strong>${escapeHtml(t('activeLocalAccountDetail'))}</div>`
     : '';
   const authNotice = latestAuthStatus.state === 'invalid' || latestAuthStatus.state === 'missing'
-    ? `<div class="notice danger-notice"><strong>Sesion de Codex</strong>${escapeHtml(latestAuthStatus.message)} Usa "Abrir Codex" o "Agregar cuenta" para recuperarla.</div>`
+    ? `<div class="notice danger-notice"><strong>${escapeHtml(t('codexSession'))}</strong>${escapeHtml(latestAuthStatus.message)} ${escapeHtml(t('recoverSession'))}</div>`
     : latestAuthStatus.state === 'skipped' || latestAuthStatus.state === 'unknown'
-      ? `<div class="notice warning-notice"><strong>Comprobacion pendiente</strong>${escapeHtml(latestAuthStatus.message)}</div>`
+      ? `<div class="notice warning-notice"><strong>${escapeHtml(t('pendingCheck'))}</strong>${escapeHtml(latestAuthStatus.message)}</div>`
       : '';
 
   return `<!DOCTYPE html>
-  <html lang="es">
+  <html lang="${languageTag()}">
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1859,18 +1861,18 @@ function dashboardHtml(webview) {
       <header>
         <div>
           <span class="version">Codex Gestion v${escapeHtml(extensionContext.extension.packageJSON.version)}</span>
-          <h1>Panel de uso de Codex</h1>
+          <h1>${escapeHtml(t('dashboardTitle'))}</h1>
           <p class="subtitle">${escapeHtml(stateTitle)}. ${escapeHtml(stateDetail)}</p>
         </div>
         <div class="actions">
-          <button data-action="refresh">Actualizar</button>
-          <button class="secondary" data-action="projectContext">Contexto proyecto</button>
-          <button class="secondary" data-action="accounts">Gestionar cuentas</button>
-          <button class="secondary" data-action="openCodex">Abrir Codex</button>
+          <button data-action="refresh">${escapeHtml(t('refresh'))}</button>
+          <button class="secondary" data-action="projectContext">${escapeHtml(t('projectContext'))}</button>
+          <button class="secondary" data-action="accounts">${escapeHtml(t('manageAccounts'))}</button>
+          <button class="secondary" data-action="openCodex">${escapeHtml(t('openCodex'))}</button>
         </div>
       </header>
 
-      ${latestError ? `<div class="notice"><strong>Error de lectura</strong>${escapeHtml(latestError.message)}</div>` : ''}
+      ${latestError ? `<div class="notice"><strong>${escapeHtml(t('readError'))}</strong>${escapeHtml(latestError.message)}</div>` : ''}
       ${authNotice}
       ${panelSessionNotice}
 
@@ -1881,8 +1883,8 @@ function dashboardHtml(webview) {
           <span>${escapeHtml(advice.detail)}</span>
         </div>
         <div class="next-reset">
-          <span>Proxima renovacion</span>
-          <strong>${nextReset ? escapeHtml(formatResetMoment(nextReset)) : 'Sin datos'}</strong>
+          <span>${escapeHtml(t('nextReset'))}</span>
+          <strong>${nextReset ? escapeHtml(formatResetMoment(nextReset)) : escapeHtml(t('noData'))}</strong>
         </div>
       </section>
 
@@ -1891,72 +1893,69 @@ function dashboardHtml(webview) {
           <div class="avatar">C</div>
           <div class="identity-copy">
             <strong>${escapeHtml(accountLabel)}</strong>
-            <span>Cuenta usada por los chats nuevos de Codex</span>
+            <span>${escapeHtml(t('accountUsedByNewChats'))}</span>
           </div>
         </div>
-        <span class="plan-pill">Plan local ${escapeHtml(planInfo.label)} - ${escapeHtml(planInfo.detail)}</span>
+        <span class="plan-pill">${escapeHtml(t('localPlan', { label: planInfo.label }))} - ${escapeHtml(planInfo.detail)}</span>
       </section>
 
       <div class="metrics">
         ${metricCard(
-          `Cuota de ${windowLabel(limits.primary?.window_minutes)}`,
-          primaryAvailable == null ? 'Pendiente' : `${formatPercent(primaryAvailable)} disponible`,
+          t('quotaOf', { window: windowLabel(limits.primary?.window_minutes) }),
+          primaryAvailable == null ? t('pending') : t('availableValue', { value: formatPercent(primaryAvailable) }),
           primaryAvailable,
-          limits.primary ? `Se renueva ${formatResetFull(limits.primary.resets_at)}` : 'Pendiente de recoger datos de esta cuenta',
-          'Es la cuota corta de uso intensivo. Se recupera varias veces durante el dia.',
+          limits.primary ? t('renewsFull', { time: formatResetFull(limits.primary.resets_at) }) : t('pendingAccountData'),
+          t('shortQuotaHint'),
           Number(primaryPercent) >= 90 ? 'danger' : Number(primaryPercent) >= 75 ? 'warning' : 'accent'
         )}
         ${metricCard(
-          `Cuota de ${windowLabel(limits.secondary?.window_minutes)}`,
-          secondaryAvailable == null ? 'Pendiente' : `${formatPercent(secondaryAvailable)} disponible`,
+          t('quotaOf', { window: windowLabel(limits.secondary?.window_minutes) }),
+          secondaryAvailable == null ? t('pending') : t('availableValue', { value: formatPercent(secondaryAvailable) }),
           secondaryAvailable,
-          limits.secondary ? `Se renueva ${formatResetFull(limits.secondary.resets_at)}` : 'Pendiente de recoger datos de esta cuenta',
-          'Es la cuota de largo plazo de la cuenta activa.',
+          limits.secondary ? t('renewsFull', { time: formatResetFull(limits.secondary.resets_at) }) : t('pendingAccountData'),
+          t('longQuotaHint'),
           Number(secondaryPercent) >= 90 ? 'danger' : Number(secondaryPercent) >= 75 ? 'warning' : 'accent'
         )}
       </div>
 
-      <h2>Que significa cada dato</h2>
+      <h2>${escapeHtml(t('whatDataMeans'))}</h2>
       <div class="explain-grid">
         <div class="explain-card">
-          <strong>5 h disponible</strong>
-          Es la cuota que limita el uso intenso a corto plazo. Si llega a 0%, espera a la hora de renovacion indicada.
+          <strong>${escapeHtml(t('fiveHoursAvailable'))}</strong>
+          ${escapeHtml(t('fiveHoursExplanation'))}
         </div>
         <div class="explain-card">
-          <strong>7 dias disponible</strong>
-          Es la cuota de largo plazo de tu cuenta. Se consume gradualmente aunque la cuota de 5 h se renueve.
+          <strong>${escapeHtml(t('sevenDaysAvailable'))}</strong>
+          ${escapeHtml(t('sevenDaysExplanation'))}
         </div>
       </div>
 
       <div class="accounts-heading">
         <div>
-          <h2>Gestion de cuentas</h2>
-          <p class="subtitle">${profiles.length} cuenta${profiles.length === 1 ? '' : 's'} detectada${profiles.length === 1 ? '' : 's'} en este equipo</p>
+          <h2>${escapeHtml(t('accountManagement'))}</h2>
+          <p class="subtitle">${escapeHtml(t('accountsDetected', { count: profiles.length, plural: plural(profiles.length) }))}</p>
         </div>
         <div class="actions">
-          <button class="secondary" data-action="switchAccount">Cambiar cuenta</button>
-          <button class="secondary" data-action="addAccount">Agregar cuenta</button>
+          <button class="secondary" data-action="switchAccount">${escapeHtml(t('switchAccount'))}</button>
+          <button class="secondary" data-action="addAccount">${escapeHtml(t('addAccount'))}</button>
           ${profiles.some(profile => profile.id !== activeProfileId)
-            ? '<button class="danger-button" data-action="clearInactiveAccounts">Borrar inactivas</button>'
+            ? `<button class="danger-button" data-action="clearInactiveAccounts">${escapeHtml(t('clearInactive'))}</button>`
             : ''}
         </div>
       </div>
       <div class="accounts">${accountCards(activeProfileId)}</div>
 
       <p class="footnote">
-        Las credenciales se guardan cifradas mediante VS Code SecretStorage y nunca aparecen en el panel, los logs o el historial.
-        Eliminar una tarjeta inactiva borra tambien su credencial guardada. Pulsa una tarjeta disponible para cambiar de cuenta.
-        Las cuotas de varias cuentas no se pueden sumar:
-        al cambiar de cuenta hay que iniciar un chat nuevo.
+        ${escapeHtml(t('credentialsFootnote'))}
       </p>
       <div class="meta-row">
-        <span>${latestStats?.isSnapshotFallback ? 'Resumen guardado' : 'Ultimo dato de Codex'}: ${latestStats ? escapeHtml(new Date(latestStats.timestamp).toLocaleString()) : 'sin datos'}</span>
-        <span>Comprobado por la extension: ${lastRefreshAt ? escapeHtml(new Date(lastRefreshAt).toLocaleTimeString()) : 'sin datos'}</span>
-        <span>Sesiones locales activas: ${latestStats?.activeSessions || 0}</span>
-        <span>Lectura completada en: ${lastRefreshDurationMs} ms</span>
+        <span>${latestStats?.isSnapshotFallback ? escapeHtml(t('savedSummary')) : escapeHtml(t('latestCodexData'))}: ${latestStats ? escapeHtml(new Date(latestStats.timestamp).toLocaleString()) : escapeHtml(t('noData'))}</span>
+        <span>${escapeHtml(t('checkedByExtension'))}: ${lastRefreshAt ? escapeHtml(new Date(lastRefreshAt).toLocaleTimeString()) : escapeHtml(t('noData'))}</span>
+        <span>${escapeHtml(t('activeLocalSessions'))}: ${latestStats?.activeSessions || 0}</span>
+        <span>${escapeHtml(t('readCompletedIn'))}: ${lastRefreshDurationMs} ms</span>
       </div>
       <div class="actions">
-        <button class="secondary" data-action="diagnostics">Ver diagnostico tecnico</button>
+        <button class="secondary" data-action="diagnostics">${escapeHtml(t('technicalDiagnostics'))}</button>
       </div>
     </main>
     <script nonce="${nonce}" src="${chartScriptUri}"></script>
@@ -1973,7 +1972,7 @@ function dashboardHtml(webview) {
         new Chart(canvas, {
           type: 'doughnut',
           data: {
-            labels: ['Libre', 'Usado'],
+            labels: [${JSON.stringify(t('free'))}, ${JSON.stringify(t('used'))}],
             datasets: [{
               data: [available, used],
               backgroundColor: [toneColor(card.dataset.tone), colorFor('--vscode-descriptionForeground')],
@@ -2029,6 +2028,7 @@ function dashboardSignature() {
     plan: latestStats?.rateLimits?.plan_type || null,
     authState: latestAuthStatus.state,
     authMessage: latestAuthStatus.message,
+    language: languageTag(),
     error: latestError?.message || '',
     profiles
   });
@@ -2092,29 +2092,29 @@ async function manageAccounts() {
   const accountItems = profiles.map(profile => ({
     label: `${profile.id === activeId ? '$(check) ' : '$(account) '}${profile.label}`,
     description: profile.id === activeId
-      ? 'Cuenta activa'
+      ? t('currentAccount')
       : profile.credentialsStored
-        ? 'Cuenta guardada y lista para usar'
-        : 'Solo historial, sin credencial guardada',
-    detail: `5 h: ${profile.snapshot?.primaryUsed == null ? '--' : `${Math.round(100 - profile.snapshot.primaryUsed)}% libre`} - 7 dias: ${profile.snapshot?.secondaryUsed == null ? '--' : `${Math.round(100 - profile.snapshot.secondaryUsed)}% libre`}`,
+        ? t('savedAccountReadyLong')
+        : t('historyOnlyNoCredential'),
+    detail: `5 h: ${profile.snapshot?.primaryUsed == null ? '--' : `${Math.round(100 - profile.snapshot.primaryUsed)}% ${t('free')}`} - 7 dias: ${profile.snapshot?.secondaryUsed == null ? '--' : `${Math.round(100 - profile.snapshot.secondaryUsed)}% ${t('free')}`}`,
     action: 'profile',
     profileId: profile.id
   }));
   const selected = await vscode.window.showQuickPick([
     {
-      label: '$(add) Agregar cuenta',
-      description: 'Guarda la actual y abre el inicio de sesion oficial',
+      label: `$(add) ${t('addAccount')}`,
+      description: t('saveCurrentAndOpenLogin'),
       action: 'add'
     },
     ...accountItems,
     ...(profiles.some(profile => profile.id !== activeId) ? [{
-      label: '$(trash) Borrar todas las cuentas inactivas',
-      description: 'Conserva la cuenta activa y elimina el resto del historial',
+      label: `$(trash) ${t('deleteAllInactive')}`,
+      description: t('keepActiveDeleteRest'),
       action: 'clearInactive'
     }] : [])
   ], {
-    title: 'Cuentas de Codex',
-    placeHolder: 'Elige una cuenta para activarla o eliminarla'
+    title: t('accountsTitle'),
+    placeHolder: t('chooseAccountPlaceholder')
   });
   if (!selected) return;
 
@@ -2125,25 +2125,25 @@ async function manageAccounts() {
     const profile = profiles.find(candidate => candidate.id === selected.profileId);
     const action = await vscode.window.showQuickPick([
       ...(!isActive && profile?.credentialsStored ? [{
-        label: '$(arrow-swap) Activar esta cuenta',
+        label: `$(arrow-swap) ${t('activateThisAccount')}`,
         action: 'switchTo'
       }] : []),
       ...(!isActive && !profile?.credentialsStored ? [{
-        label: '$(sign-in) Iniciar sesion con esta cuenta',
-        description: 'La credencial no esta guardada o ya no es valida',
+        label: `$(sign-in) ${t('signInWithAccount')}`,
+        description: t('credentialMissingOrInvalid'),
         action: 'login'
       }] : []),
       {
-        label: '$(edit) Cambiar nombre',
+        label: `$(edit) ${t('changeName')}`,
         action: 'rename'
       },
       ...(!isActive ? [{
-        label: '$(trash) Eliminar',
+        label: `$(trash) ${t('delete')}`,
         action: 'forget'
       }] : [])
     ], {
       title: selected.label.replace(/^\$\([^)]+\)\s*/, ''),
-      placeHolder: 'Que quieres hacer con esta cuenta?'
+      placeHolder: t('accountActionPlaceholder')
     });
     if (action?.action === 'switchTo') return switchStoredAccount(selected.profileId);
     if (action?.action === 'login') return addAccount();
@@ -2155,21 +2155,21 @@ async function manageAccounts() {
 async function showRecovery() {
   const account = readCurrentAccount();
   const message = latestError
-    ? `Codex Gestion ha fallado: ${latestError.message}`
+    ? t('recoveryFailed', { message: latestError.message })
     : account.hasCredentials
-      ? 'La sesion esta iniciada, pero todavia no hay datos. Usa un chat de Codex y vuelve a actualizar.'
-      : 'No se ha detectado una sesion de Codex. Abre Codex para iniciar sesion.';
+      ? t('sessionNoData')
+      : t('noCodexSessionDetected');
 
   const action = await vscode.window.showWarningMessage(
     message,
-    'Abrir Codex',
-    'Actualizar',
-    'Ver diagnostico'
+    t('openCodex'),
+    t('refresh'),
+    t('viewDiagnostics')
   );
 
-  if (action === 'Abrir Codex') await openCodex();
-  if (action === 'Actualizar') setTimeout(() => void refresh(true), 0);
-  if (action === 'Ver diagnostico') showDiagnostics();
+  if (action === t('openCodex')) await openCodex();
+  if (action === t('refresh')) setTimeout(() => void refresh(true), 0);
+  if (action === t('viewDiagnostics')) showDiagnostics();
 }
 
 async function showDetails() {
@@ -2222,6 +2222,8 @@ function startSessionWatcher() {
 
 function activate(context) {
   extensionContext = context;
+  i18n.init(vscode);
+  if (latestAuthStatus.state === 'unknown') latestAuthStatus.message = t('sessionUnchecked');
   outputChannel = vscode.window.createOutputChannel('Codex Gestion');
   statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusItem.name = 'Codex Gestion';
@@ -2265,10 +2267,10 @@ function activate(context) {
   if (previousVersion !== currentVersion) {
     context.globalState.update('lastActivatedVersion', currentVersion);
     vscode.window.showInformationMessage(
-      `Codex Gestion ${currentVersion}: nuevo panel visual disponible.`,
-      'Abrir panel'
+      t('releaseMessage', { version: currentVersion }),
+      t('openPanel')
     ).then(action => {
-      if (action === 'Abrir panel') showDashboard();
+      if (action === t('openPanel')) showDashboard();
     });
   }
 }
