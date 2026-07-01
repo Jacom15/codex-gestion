@@ -124,7 +124,9 @@ See `PUBLISHING.md`. The current Marketplace publisher is `jacom15`.
 
 Codex Gestion is free. If it saves you time, donations are welcome but optional.
 
-Support: <https://ko-fi.com/jacom15>
+<p align="center">
+  <a href="https://ko-fi.com/jacom15"><img alt="Support on Ko-fi" src="https://img.shields.io/badge/Support%20on-Ko--fi-ff5f5f?style=for-the-badge&logo=kofi&logoColor=white"></a>
+</p>
 
 Donations do not unlock extra features; they just help keep maintenance moving.
 See `DONATE.md` for details.
