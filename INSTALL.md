@@ -1,9 +1,9 @@
-﻿# Instalacion
+# Instalacion
 
 ## Requisitos
 
 - Visual Studio Code instalado.
-- El archivo `codex-gestion-0.0.3.vsix`, o la extension publicada en el
+- El archivo `codex-gestion-0.0.5.vsix`, o la extension publicada en el
   Marketplace.
 
 Node.js no es necesario para usar la extension. Solo hace falta si quieres
@@ -14,7 +14,7 @@ modificarla o generar un nuevo paquete.
 Si el paquete esta en la carpeta actual:
 
 ```powershell
-code --install-extension .\dist\codex-gestion-0.0.3.vsix --force
+code --install-extension .\dist\codex-gestion-0.0.5.vsix --force
 ```
 
 Tambien puedes instalarlo desde VS Code con:
@@ -53,7 +53,7 @@ npm run package
 Esto ejecuta los tests y crea:
 
 ```text
-dist\codex-gestion-0.0.3.vsix
+dist\codex-gestion-0.0.5.vsix
 ```
 
 Para probarlo en el equipo actual:

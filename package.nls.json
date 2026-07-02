@@ -13,5 +13,6 @@
   "config.language": "Language used by Codex Gestion UI.",
   "config.language.auto": "Use the VS Code display language.",
   "config.language.es": "Spanish",
-  "config.language.en": "English"
+  "config.language.en": "English",
+  "config.projectContext.includeSessionExcerpts": "Include recent local Codex session excerpts in the generated project context file. Everything stays local, but chat content may be written to .codex-gestion/PROJECT_CONTEXT.md."
 }

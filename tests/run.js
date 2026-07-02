@@ -20,6 +20,8 @@ assert.strictEqual(__test.availablePercent(150), 0);
 assert.strictEqual(__test.availablePercent(null), null);
 assert.strictEqual(__test.availablePercent(undefined), null);
 assert.match(__test.formatContextQuota('Cuota 5 h', null), /pendiente de recoger datos/i);
+assert.match(__test.formatContextQuota('Cuota 5 h', { used_percent: 40, resets_at: Math.floor(Date.now() / 1000) - 60 }), /dato puede estar antiguo|vencida|stale/i);
+assert.doesNotMatch(__test.sanitizeContextExcerpt('token sk-1234567890abcdef and access_token=secret-value'), /sk-1234567890abcdef|secret-value/);
 assert.strictEqual(__test.getContextPercent({
   lastTokenUsage: { total_tokens: 50 },
   modelContextWindow: 200
@@ -145,6 +147,16 @@ assert.strictEqual(__test.statsBelongsToAnotherProfile('profile-b', [{
   id: 'profile-a',
   snapshot: { rateLimitFingerprint: matching.rateLimitFingerprint }
 }], matching), true);
+const conversationPath = path.join(tempDir, 'conversation.jsonl');
+fs.writeFileSync(conversationPath, [
+  JSON.stringify({ timestamp: '2026-06-15T12:00:00.000Z', type: 'user_message', payload: { content: 'Tenemos que mejorar el contexto entre cuentas.' } }),
+  JSON.stringify({ timestamp: '2026-06-15T12:01:00.000Z', type: 'assistant_message', payload: { content: 'Voy a generar un contexto automatico con estado Git y sesiones locales.' } }),
+  JSON.stringify({ timestamp: '2026-06-15T12:02:00.000Z', type: 'tool_result', payload: { stdout: 'npm test passed with sk-1234567890abcdef redacted' } })
+].join('\n'));
+const conversationItems = __test.extractSessionConversationItems(conversationPath, 5);
+assert.ok(conversationItems.length >= 2);
+assert.match(conversationItems.map(item => item.excerpt).join('\n'), /contexto automatico|mejorar el contexto/i);
+assert.doesNotMatch(conversationItems.map(item => item.excerpt).join('\n'), /sk-1234567890abcdef/);
 assert.strictEqual(__test.statsBelongsToAnotherProfile('profile-a', [{
   id: 'profile-a',
   snapshot: { rateLimitFingerprint: matching.rateLimitFingerprint }

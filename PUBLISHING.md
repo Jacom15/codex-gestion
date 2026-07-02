@@ -62,7 +62,7 @@ npm run package
 Inspect the VSIX contents:
 
 ```powershell
-tar -tf .\dist\codex-gestion-0.0.3.vsix
+tar -tf .\dist\codex-gestion-0.0.5.vsix
 ```
 
 Confirm the package includes:

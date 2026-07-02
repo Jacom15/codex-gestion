@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.0.3-60a5fa?style=for-the-badge">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.0.5-60a5fa?style=for-the-badge">
   <img alt="License" src="https://img.shields.io/badge/license-source--available-4ec9b0?style=for-the-badge">
   <img alt="Privacy" src="https://img.shields.io/badge/privacy-local_only-111827?style=for-the-badge">
   <img alt="VS Code" src="https://img.shields.io/badge/VS_Code-%5E1.85-007ACC?style=for-the-badge">
@@ -35,12 +35,14 @@ account snapshots, and account switching inside VS Code. It is built for the
 small but very real moment where you want to know: which account am I using,
 how much quota is left, and when does it reset?
 
-### New in 0.0.3
+### New in 0.0.5
 
-- English UI support with automatic VS Code language detection.
-- New `codexGestion.language` setting with `auto`, `es`, and `en` modes.
-- Marketplace commands and settings are localized.
-- Source-available license: users can install and review the extension, but copying, modifying, repackaging, redistributing, or publishing derivative extensions is not permitted without written permission.
+- Smarter project handoff context for continuing work in another chat or account.
+- Optional local Codex session excerpts in `.codex-gestion/PROJECT_CONTEXT.md` through `codexGestion.projectContext.includeSessionExcerpts`.
+- Project context now includes Git status and a clearer next-chat continuation prompt.
+- Compact status bar now shows available quota plus the real time left to reset.
+- Logo PNG now has transparent rounded corners for Marketplace and VS Code views.
+- Reset times no longer show stale `in now` / `dentro de now` text.
 
 ### Preview
 
@@ -57,7 +59,7 @@ how much quota is left, and when does it reset?
 | Status bar | Adds a compact status-bar summary and visual tooltip for quick checks. |
 | Accounts | Stores local account credentials in VS Code SecretStorage and lets you switch accounts. |
 | Switching | Reloads VS Code automatically after a successful switch and guards against Codex restoring the previous account. |
-| Handoff | Maintains a safe project context file at `.codex-gestion/PROJECT_CONTEXT.md`. |
+| Handoff | Maintains a local project context file at `.codex-gestion/PROJECT_CONTEXT.md`, with optional sanitized session excerpts for account/chat handoff. |
 | Diagnostics | Generates sanitized troubleshooting output without tokens or full chat contents. |
 
 ### Privacy-first by design
@@ -71,15 +73,16 @@ It reads:
 - `~/.codex/auth.json`
 - VS Code SecretStorage entries created by this extension
 - the current workspace path when creating project context
+- recent local Codex session excerpts when project context excerpts are enabled
 
 It writes:
 
 - `~/.codex/auth.json` when you explicitly add or switch accounts
 - VS Code SecretStorage entries for saved account credentials
-- `.codex-gestion/PROJECT_CONTEXT.md` in the current workspace
+- `.codex-gestion/PROJECT_CONTEXT.md` in the current workspace, optionally including sanitized local session excerpts
 
 It does not intentionally send tokens, credentials, prompts, file contents,
-session contents, or diagnostics to any remote server. See `PRIVACY.md` for
+session contents, or diagnostics to any remote server. Session excerpts, when enabled, are written only to the local project context file. See `PRIVACY.md` for
 the full policy.
 
 ### Installation
@@ -93,7 +96,7 @@ Codex Gestion
 From a local VSIX package:
 
 ```powershell
-code --install-extension .\dist\codex-gestion-0.0.3.vsix --force
+code --install-extension .\dist\codex-gestion-0.0.5.vsix --force
 ```
 
 ### Commands
@@ -155,12 +158,14 @@ uso, ventanas de cuota, cuentas detectadas y cambio de cuenta dentro de VS Code.
 Esta pensada para ese momento concreto en el que quieres saber: que cuenta estoy
 usando, cuanta cuota queda y cuando se renueva?
 
-### Nuevo en 0.0.3
+### Nuevo en 0.0.5
 
-- Soporte de interfaz en ingles con deteccion automatica del idioma de VS Code.
-- Nuevo ajuste `codexGestion.language` con modos `auto`, `es` y `en`.
-- Comandos y ajustes del Marketplace localizados.
-- Licencia source-available: los usuarios pueden instalar y revisar la extension, pero no copiar, modificar, reempaquetar, redistribuir ni publicar extensiones derivadas sin permiso escrito.
+- Contexto de traspaso mas inteligente para continuar el trabajo en otro chat o cuenta.
+- Extractos opcionales de sesiones locales de Codex en `.codex-gestion/PROJECT_CONTEXT.md` mediante `codexGestion.projectContext.includeSessionExcerpts`.
+- El contexto del proyecto ahora incluye estado Git y un prompt de continuacion mas claro.
+- La barra compacta ahora muestra la cuota disponible y el tiempo real que falta para renovar.
+- El PNG del logo ahora tiene esquinas redondeadas transparentes para Marketplace y VS Code.
+- Las renovaciones antiguas ya no muestran textos confusos como `in now` / `dentro de now`.
 
 ### Vista previa
 
@@ -177,7 +182,7 @@ usando, cuanta cuota queda y cuando se renueva?
 | Barra de estado | Anade un resumen compacto y un tooltip visual para consultas rapidas. |
 | Cuentas | Guarda credenciales locales en VS Code SecretStorage y permite cambiar entre cuentas. |
 | Cambio de cuenta | Recarga VS Code automaticamente tras un cambio correcto y evita que Codex restaure la cuenta anterior. |
-| Traspaso | Mantiene un archivo seguro de contexto en `.codex-gestion/PROJECT_CONTEXT.md`. |
+| Traspaso | Mantiene un archivo local de contexto en `.codex-gestion/PROJECT_CONTEXT.md`, con extractos saneados opcionales para cambiar de cuenta o chat. |
 | Diagnostico | Genera informacion de ayuda saneada, sin tokens ni contenido completo de chats. |
 
 ### Privacidad primero
@@ -190,15 +195,16 @@ Lee:
 - `~/.codex/auth.json`
 - entradas de VS Code SecretStorage creadas por esta extension
 - la ruta del workspace actual al crear contexto de proyecto
+- extractos recientes de sesiones locales de Codex si los extractos de contexto estan activados
 
 Escribe:
 
 - `~/.codex/auth.json` cuando agregas o cambias cuentas explicitamente
 - entradas de VS Code SecretStorage para credenciales guardadas
-- `.codex-gestion/PROJECT_CONTEXT.md` en el workspace actual
+- `.codex-gestion/PROJECT_CONTEXT.md` en el workspace actual, opcionalmente con extractos saneados de sesiones locales
 
 No envia intencionadamente tokens, credenciales, prompts, contenidos de archivos,
-contenidos de sesiones ni diagnosticos a ningun servidor remoto. Consulta
+contenidos de sesiones ni diagnosticos a ningun servidor remoto. Los extractos de sesion, si estan activados, solo se escriben en el archivo local de contexto del proyecto. Consulta
 `PRIVACY.md` para ver la politica completa.
 
 ### Instalacion
@@ -212,7 +218,7 @@ Codex Gestion
 Desde un paquete VSIX local:
 
 ```powershell
-code --install-extension .\dist\codex-gestion-0.0.3.vsix --force
+code --install-extension .\dist\codex-gestion-0.0.5.vsix --force
 ```
 
 ### Comandos

@@ -2,7 +2,7 @@
   "name": "codex-gestion",
   "displayName": "Codex Gestion",
   "description": "%extension.description%",
-  "version": "0.0.3",
+  "version": "0.0.5",
   "publisher": "jacom15",
   "icon": "media/codex-gestion-logo.png",
   "license": "SEE LICENSE IN LICENSE",
@@ -87,6 +87,11 @@
             "%config.language.en%"
           ],
           "description": "%config.language%"
+        },
+        "codexGestion.projectContext.includeSessionExcerpts": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.projectContext.includeSessionExcerpts%"
         }
       }
     }

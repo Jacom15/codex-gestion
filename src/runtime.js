@@ -2,7 +2,7 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { execFile } = require('child_process');
+const { execFile, execFileSync } = require('child_process');
 const {
   ACCOUNT_PROFILES_KEY,
   ACTIVE_ACCOUNT_KEY,
@@ -34,6 +34,7 @@ const {
   finiteNumber,
   formatNumber,
   formatPercent,
+  formatReset,
   formatResetFull,
   formatResetMoment,
   getContextPercent,
@@ -778,7 +779,10 @@ function updateStatusBar(stats) {
 
   const primaryAvailable = availablePercent(primary?.used_percent);
   if (primaryAvailable !== null) {
-    pieces.push(`$(dashboard) 5h ${formatPercent(primaryAvailable)} ${t('free')}`);
+    const resetCountdown = finiteNumber(primary?.resets_at) && Number(primary.resets_at) * 1000 > Date.now()
+      ? ` | ${formatReset(primary.resets_at)}`
+      : '';
+    pieces.push(`$(dashboard) ${formatPercent(primaryAvailable)} ${t('free')}${resetCountdown}`);
   }
   else pieces.push('$(pulse) Codex');
 
@@ -1310,11 +1314,185 @@ function getProjectContextPath() {
   return path.join(root, PROJECT_CONTEXT_DIR, PROJECT_CONTEXT_FILE);
 }
 
+function runGit(root, args, fallback = '') {
+  if (!root) return fallback;
+  try {
+    return execFileSync('git', ['-C', root, ...args], {
+      encoding: 'utf8',
+      timeout: 1500,
+      windowsHide: true
+    }).trim();
+  } catch {
+    return fallback;
+  }
+}
+
+function getGitContextSummary(root) {
+  const status = runGit(root, ['status', '--short', '--branch']);
+  const statusLines = status ? status.split(/\r?\n/).filter(Boolean) : [];
+  const branch = statusLines[0] || 'sin datos';
+  const changes = statusLines.slice(1);
+  const lastCommit = runGit(root, ['log', '-1', '--oneline'], 'sin datos');
+  return {
+    branch,
+    lastCommit,
+    dirtyCount: changes.length,
+    dirtyPreview: changes.slice(0, 8)
+  };
+}
+
 function formatContextQuota(label, limit) {
   if (!limit) return `- ${label}: pendiente de recoger datos; abre Codex con esta cuenta o inicia un chat nuevo`;
   const available = availablePercent(limit.used_percent);
-  const reset = finiteNumber(limit.resets_at) ? formatResetFull(limit.resets_at) : 'sin renovacion';
-  return `- ${label}: ${formatPercent(available)} disponible; se renueva ${reset}`;
+  const reset = finiteNumber(limit.resets_at)
+    ? formatResetFull(limit.resets_at)
+    : 'sin renovacion registrada';
+  const freshness = finiteNumber(limit.resets_at) && Number(limit.resets_at) * 1000 <= Date.now()
+    ? '; ojo: el dato puede estar antiguo'
+    : '';
+  return `- ${label}: ${formatPercent(available)} disponible; se renueva ${reset}${freshness}`;
+}
+
+function formatContextPercent(stats) {
+  const percent = getContextPercent(stats);
+  if (percent === null) return '- Contexto usado del chat actual: sin datos locales';
+  return `- Contexto usado del chat actual: ${formatPercent(percent)}`;
+}
+function projectContextIncludesSessionExcerpts() {
+  return Boolean(vscode.workspace.getConfiguration('codexGestion').get('projectContext.includeSessionExcerpts', true));
+}
+
+function sanitizeContextExcerpt(value, maxLength = 520) {
+  const text = String(value || '')
+    .replace(/\r/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  if (!text) return '';
+  const redacted = text
+    .replace(/(sk-[A-Za-z0-9_-]{12,})/g, '[redacted-token]')
+    .replace(/(eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,})/g, '[redacted-jwt]')
+    .replace(/(access_token|refresh_token|id_token|api[_-]?key|authorization)\s*[:=]\s*[^\s,;]+/gi, '$1=[redacted]');
+  return redacted.length > maxLength ? `${redacted.slice(0, maxLength - 1).trim()}...` : redacted;
+}
+
+function collectTextValues(value, depth = 0) {
+  if (depth > 5 || value == null) return [];
+  if (typeof value === 'string') return [value];
+  if (Array.isArray(value)) return value.flatMap(item => collectTextValues(item, depth + 1));
+  if (typeof value !== 'object') return [];
+
+  const directKeys = ['text', 'content', 'message', 'summary', 'command', 'cmd', 'stderr', 'stdout', 'error'];
+  const direct = [];
+  for (const key of directKeys) {
+    if (typeof value[key] === 'string') direct.push(value[key]);
+  }
+  if (direct.length) return direct;
+
+  return Object.values(value).flatMap(item => collectTextValues(item, depth + 1));
+}
+
+function classifySessionEvent(event) {
+  const blob = JSON.stringify(event).toLowerCase();
+  if (/tool|command|exec|terminal|apply_patch|patch/.test(blob)) return 'tool';
+  if (/assistant|agent|codex/.test(blob)) return 'assistant';
+  if (/user|prompt|input/.test(blob)) return 'user';
+  return 'event';
+}
+
+function extractSessionConversationItems(filePath, limit = 8) {
+  let raw = '';
+  try {
+    const stat = fs.statSync(filePath);
+    const bytes = Math.min(stat.size, 768 * 1024);
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      const buffer = Buffer.alloc(bytes);
+      fs.readSync(fd, buffer, 0, bytes, stat.size - bytes);
+      raw = buffer.toString('utf8');
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    return [];
+  }
+
+  const items = [];
+  const lines = raw.split(/\r?\n/).filter(Boolean);
+  for (let index = lines.length - 1; index >= 0 && items.length < limit; index -= 1) {
+    const line = lines[index].trim();
+    if (!line || line.length < 3) continue;
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (event?.payload?.type === 'token_count' || event?.type === 'session_meta') continue;
+    const texts = collectTextValues(event.payload ?? event)
+      .map(text => sanitizeContextExcerpt(text))
+      .filter(text => text && !/^\{.*\}$/.test(text))
+      .filter(text => !/^\d{4}-\d{2}-\d{2}T/.test(text))
+      .filter(text => !/^[a-z_]+$/.test(text));
+    if (!texts.length) continue;
+    const unique = [...new Set(texts)].slice(0, 2).join('\n');
+    const excerpt = sanitizeContextExcerpt(unique);
+    if (!excerpt || excerpt.length < 12) continue;
+    items.push({
+      role: classifySessionEvent(event),
+      timestamp: event.timestamp || event.time || '',
+      excerpt
+    });
+  }
+  return items.reverse();
+}
+
+function buildSessionContinuitySection(workspaceRoot) {
+  if (!projectContextIncludesSessionExcerpts()) {
+    return [
+      '### Continuidad conversacional local',
+      '',
+      '- Extractos de sesiones locales desactivados por configuracion (`codexGestion.projectContext.includeSessionExcerpts`).'
+    ];
+  }
+
+  const files = getSessionFiles(SESSION_ROOT, 0) || [];
+  const workspaceNormalized = workspaceRoot ? normalizeFsPath(workspaceRoot) : '';
+  const scored = files.slice(0, 30).map(file => {
+    const meta = readSessionMeta(file.path) || {};
+    const cwd = meta.cwd || meta.workspace || '';
+    const sameWorkspace = workspaceNormalized && cwd && normalizeFsPath(cwd) === workspaceNormalized;
+    return { ...file, meta, sameWorkspace };
+  }).sort((left, right) => Number(right.sameWorkspace) - Number(left.sameWorkspace) || right.mtimeMs - left.mtimeMs);
+
+  const selected = scored.slice(0, 3);
+  const lines = [
+    '### Continuidad conversacional local',
+    '',
+    '- Fuente: extractos recientes de sesiones locales de Codex. Todo queda en este equipo y se recorta/sanea antes de escribirse.',
+    '- No es un resumen inteligente completo; es una ayuda para que el siguiente chat vea los ultimos temas tratados.'
+  ];
+
+  if (!selected.length) {
+    lines.push('- No se encontraron sesiones locales de Codex.');
+    return lines;
+  }
+
+  for (const file of selected) {
+    const label = file.sameWorkspace ? 'workspace actual' : 'sesion reciente';
+    lines.push('', `#### ${label} - ${new Date(file.mtimeMs).toLocaleString()}`);
+    const items = extractSessionConversationItems(file.path, 6);
+    if (!items.length) {
+      lines.push('- Sin mensajes reutilizables detectados en la cola de la sesion.');
+      continue;
+    }
+    for (const item of items) {
+      const stamp = item.timestamp ? ` (${new Date(item.timestamp).toLocaleString()})` : '';
+      lines.push(`- ${item.role}${stamp}: ${item.excerpt.replace(/\n/g, '\n  ')}`);
+    }
+  }
+
+  return lines;
 }
 
 function buildProjectContextAutoBlock(reason = 'manual') {
@@ -1333,73 +1511,94 @@ function buildProjectContextAutoBlock(reason = 'manual') {
     : reason === 'refresh'
       ? 'Actualizacion manual'
       : 'Apertura/creacion';
+  const git = getGitContextSummary(workspaceRoot);
+  const plan = latestStats ? planDisplay(latestStats) : null;
+  const localDataAge = latestStats?.timestamp
+    ? `${new Date(latestStats.timestamp).toLocaleString()}`
+    : 'sin datos';
+  const dirtySummary = git.dirtyCount
+    ? `${git.dirtyCount} cambio${git.dirtyCount === 1 ? '' : 's'} sin commit`
+    : 'limpio';
+  const dirtyPreview = git.dirtyPreview.length
+    ? git.dirtyPreview.map(line => `  - ${line}`)
+    : ['  - sin cambios locales detectados'];
 
   return [
     PROJECT_CONTEXT_START,
-    '## Resumen automatico',
+    '## Resumen automatico para continuar',
     '',
-    `- Proyecto/carpeta: ${workspaceName}`,
-    `- Actualizado: ${new Date().toLocaleString()}`,
+    '### Proyecto',
+    '',
+    `- Carpeta/workspace: ${workspaceName}`,
+    `- Actualizado por Codex Gestion: ${new Date().toLocaleString()}`,
     `- Motivo: ${reasonLabel}`,
     `- Extension: Codex Gestion v${extensionContext.extension.packageJSON.version}`,
-    `- Cuenta activa: ${accountLabel}`,
+    '',
+    '### Cuenta y cuotas locales',
+    '',
+    `- Cuenta activa al generar este contexto: ${accountLabel}`,
     `- Estado de sesion: ${latestAuthStatus.state} - ${latestAuthStatus.message}`,
     formatContextQuota('Cuota 5 h', limits.primary),
     formatContextQuota('Cuota 7 dias', limits.secondary),
-    latestStats ? `- Plan local observado: ${planDisplay(latestStats).label} (${planDisplay(latestStats).detail})` : '- Plan local observado: pendiente de recoger datos',
-    `- Ultimo dato local: ${latestStats ? new Date(latestStats.timestamp).toLocaleString() : 'sin datos'}`,
+    plan ? `- Plan local observado: ${plan.label} (${plan.detail})` : '- Plan local observado: pendiente de recoger datos',
+    `- Ultimo dato local de Codex: ${localDataAge}`,
     `- Sesiones locales activas detectadas: ${latestStats?.activeSessions || 0}`,
+    formatContextPercent(latestStats),
+    '',
+    '### Estado Git al generar contexto',
+    '',
+    `- Rama/estado: ${git.branch}`,
+    `- Ultimo commit: ${git.lastCommit}`,
+    `- Working tree: ${dirtySummary}`,
+    ...dirtyPreview,
+    '',
+    ...buildSessionContinuitySection(workspaceRoot),
+    '',
+    '### Para el siguiente chat/cuenta',
+    '',
+    '- Lee primero las secciones editables de este documento: Objetivo, Estado actual, Decisiones, Riesgos y Proximos pasos.',
+    '- Antes de cambiar archivos, ejecuta `git status --short --branch` y revisa si hay cambios sin commit.',
+    '- Si vienes de otra cuenta, no asumas que las cuotas o contexto de chat se suman; continua desde este documento y desde el repo.',
+    '- Si el dato de cuota aparece vencido o antiguo, abre Codex con la cuenta activa e inicia/continua un chat para refrescar estadisticas.',
     '',
     '> Este bloque lo regenera Codex Gestion. No incluye credenciales, tokens, mensajes privados ni contenido completo de chats.',
     PROJECT_CONTEXT_END
   ].join('\n');
 }
-
 function buildInitialProjectContext(reason) {
   return [
-    '# Contexto del proyecto para Codex',
+    '# Contexto de continuidad para Codex',
     '',
     buildProjectContextAutoBlock(reason),
     '',
-    '## Objetivo',
+    '## Como usar este archivo',
     '',
-    '- Describe aqui que se esta construyendo y para que.',
+    '- Este documento lo mantiene Codex Gestion para continuar trabajo entre chats o cuentas.',
+    '- El bloque automatico recoge estado local, Git, cuotas y extractos recientes de sesiones locales.',
+    '- Puedes editar notas debajo si quieres, pero no hace falta rellenarlo manualmente para que sea util.',
     '',
-    '## Estado actual',
+    '## Archivos importantes detectados para este proyecto',
     '',
-    '- Que funciona ahora mismo.',
-    '- Que se acaba de cambiar.',
-    '- Que falta validar.',
+    '- `src/runtime.js`: panel, cuentas, contexto y flujo principal.',
+    '- `src/i18n.js`: textos traducidos de la interfaz.',
+    '- `package.json`: comandos, version, publisher y configuracion de VS Code.',
+    '- `README.md` / `CHANGELOG.md` / `LICENSE`: documentacion publica y Marketplace.',
+    '- `tests/`: pruebas automaticas y smoke test.',
     '',
-    '## Decisiones tomadas',
+    '## Notas manuales opcionales',
     '',
-    '- Decision: motivo.',
-    '',
-    '## Archivos importantes',
-    '',
-    '- `extension.js`: logica principal de la extension.',
-    '- `package.json`: comandos, version y configuracion de VS Code.',
-    '- `tests/`: pruebas automaticas.',
-    '',
-    '## Bugs o riesgos conocidos',
-    '',
-    '- Anota aqui fallos pendientes, limitaciones o cosas delicadas.',
-    '',
-    '## Proximos pasos',
-    '',
-    '- Siguiente accion concreta.',
+    '- Anota aqui solo lo que no aparezca en el resumen automatico.',
     '',
     '## Prompt para continuar en otro chat o cuenta',
     '',
-    'Copia desde aqui cuando quieras continuar con otra cuenta o pasarlo a un companero:',
+    'Copia desde aqui cuando quieras continuar con otra cuenta o chat:',
     '',
     '```text',
-    'Continua este proyecto usando el contexto de este documento. Respeta las decisiones tomadas, revisa los archivos indicados y antes de cambiar algo comprueba el estado actual del repo.',
+    'Continua este proyecto usando .codex-gestion/PROJECT_CONTEXT.md como contexto principal. Lee el resumen automatico, revisa el estado Git y los extractos de sesiones locales, y antes de editar ejecuta git status --short --branch. No asumas que las cuotas o el contexto del chat anterior se suman al cambiar de cuenta.',
     '```',
     ''
   ].join('\n');
 }
-
 async function updateProjectContextFile(reason = 'manual', options = {}) {
   const { refreshFirst = true, silent = false, createIfMissing = true } = options;
   const filePath = getProjectContextPath();
@@ -2302,8 +2501,11 @@ module.exports = {
     clearPostSwitchRefreshTimers,
     enforceAccountSwitchGuard,
     findCodexExecutable,
+    buildInitialProjectContext,
+    extractSessionConversationItems,
     formatContextQuota,
     getContextPercent,
+    sanitizeContextExcerpt,
     isPathInside,
     mergeAccountSnapshot,
     parseLatestStats,

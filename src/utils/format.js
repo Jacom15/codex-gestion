@@ -81,7 +81,13 @@ function formatResetMoment(epochSeconds) {
 }
 
 function formatResetFull(epochSeconds) {
-  return `${formatResetMoment(epochSeconds)} (dentro de ${formatReset(epochSeconds)})`;
+  const epoch = finiteNumber(epochSeconds);
+  if (epoch === null) return formatResetMoment(epochSeconds);
+  const remainingMs = epoch * 1000 - Date.now();
+  const suffix = remainingMs <= 0
+    ? t('resetAlreadyPassed')
+    : t('resetIn', { duration: formatReset(epochSeconds) });
+  return `${formatResetMoment(epochSeconds)} (${suffix})`;
 }
 
 function windowLabel(minutes) {

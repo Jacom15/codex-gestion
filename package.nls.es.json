@@ -13,5 +13,6 @@
   "config.language": "Idioma usado por la interfaz de Codex Gestion.",
   "config.language.auto": "Usar el idioma de VS Code.",
   "config.language.es": "Espanol",
-  "config.language.en": "Ingles"
+  "config.language.en": "Ingles",
+  "config.projectContext.includeSessionExcerpts": "Incluir extractos recientes de sesiones locales de Codex en el archivo de contexto del proyecto. Todo queda local, pero parte del chat puede escribirse en .codex-gestion/PROJECT_CONTEXT.md."
 }
