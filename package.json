@@ -2,7 +2,7 @@
   "name": "codex-gestion",
   "displayName": "Codex Gestion",
   "description": "%extension.description%",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "publisher": "jacom15",
   "icon": "media/codex-gestion-logo.png",
   "license": "SEE LICENSE IN LICENSE",
@@ -101,7 +101,8 @@
     "package": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package.ps1",
     "install:local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install.ps1",
     "test": "node tests/run.js && node tests/smoke.js",
-    "publish:marketplace": "vsce publish"
+    "publish:marketplace": "vsce publish",
+    "release:prepare": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1"
   },
   "devDependencies": {
     "@vscode/vsce": "^3.6.2"

@@ -109,6 +109,30 @@ function getContextPercent(stats) {
   return Math.min(100, Math.max(0, used / window * 100));
 }
 
+function usageWindows(rateLimits) {
+  if (!rateLimits || typeof rateLimits !== 'object') return [];
+  const windows = [];
+  const pushLimit = (value, order) => {
+    if (!value || typeof value !== 'object') return;
+    if (finiteNumber(value.used_percent) === null) return;
+    windows.push({
+      used_percent: value.used_percent,
+      window_minutes: finiteNumber(value.window_minutes),
+      order
+    });
+  };
+  if (Array.isArray(rateLimits.windows)) rateLimits.windows.forEach((limit, index) => pushLimit(limit, index));
+  if (Array.isArray(rateLimits.quotas)) rateLimits.quotas.forEach((limit, index) => pushLimit(limit, index + windows.length));
+  pushLimit(rateLimits.primary, 0);
+  pushLimit(rateLimits.secondary, 1);
+  return windows.sort((left, right) => {
+    if (left.window_minutes !== null && right.window_minutes !== null && left.window_minutes !== right.window_minutes) {
+      return left.window_minutes - right.window_minutes;
+    }
+    return left.order - right.order;
+  });
+}
+
 function getUsageAdvice(stats, authStatus) {
   if (authStatus?.state === 'invalid') {
     return {
@@ -132,8 +156,9 @@ function getUsageAdvice(stats, authStatus) {
     };
   }
 
-  const primary = Number(stats?.rateLimits?.primary?.used_percent);
-  const secondary = Number(stats?.rateLimits?.secondary?.used_percent);
+  const quotaWindows = usageWindows(stats?.rateLimits);
+  const primary = Number(quotaWindows[0]?.used_percent);
+  const secondary = Number(quotaWindows[1]?.used_percent);
 
   if (Number.isFinite(primary) && primary >= 95) {
     return {

@@ -52,7 +52,21 @@ npx vsce login your-publisher-id
 
 ## 3. Pre-release checks
 
-Run:
+Recommended release prep command:
+
+```powershell
+npm run release:prepare -- -Version 0.0.7 -Notes "Added account diagnostics", "Fixed stale quota labels"
+```
+
+This command updates `package.json`, `package-lock.json`, README/INSTALL/PUBLISHING VSIX references, and `CHANGELOG.md` when needed. It then runs tests, creates the VSIX, validates that the expected file exists, and prints the final path.
+
+For a dry run without packaging, use:
+
+```powershell
+npm run release:prepare -- -Version 0.0.7 -SkipPackage
+```
+
+Manual fallback:
 
 ```powershell
 npm test
@@ -62,7 +76,7 @@ npm run package
 Inspect the VSIX contents:
 
 ```powershell
-tar -tf .\dist\codex-gestion-0.0.5.vsix
+tar -tf .\dist\codex-gestion-0.0.6.vsix
 ```
 
 Confirm the package includes:
@@ -80,7 +94,6 @@ Confirm it does not include:
 - old `.vsix` files
 - `node_modules`
 - credentials or local auth files
-
 ## 4. README images
 
 The README uses images from `media/`. For local VSIX builds, the package script

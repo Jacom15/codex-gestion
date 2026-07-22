@@ -54,9 +54,14 @@ const {
   readSessionMeta
 } = require('./sessions/reader');
 const { buildCodexLoginCommand, findCodexExecutable } = require('./codex/cli');
+const {
+  effectiveRefreshIntervalSeconds,
+  planPolicyFrom
+} = require('./plans/policy');
 const i18n = require('./i18n');
-const { t, languageTag, plural } = i18n;
+const { t, languageTag, currentLanguageSetting, plural } = i18n;
 let latestStats = null;
+let currentPlanPolicy = planPolicyFrom(null, null);
 let refreshTimer = null;
 let authWatchTimer = null;
 let sessionWatcher = null;
@@ -77,6 +82,7 @@ let lastRefreshAt = 0;
 let lastKnownAccount = null;
 let authUnavailableSince = 0;
 let activeSwitchGuard = null;
+let scheduledRefreshSeconds = 0;
 const credentialHashes = new Map();
 
 let latestAuthStatus = {
@@ -442,13 +448,17 @@ function updateAccountProfiles(mutator) {
 function mergeAccountSnapshot(existingSnapshot, stats) {
   const existing = existingSnapshot || {};
   if (!stats) return existing;
+  const quotaWindows = quotaWindowsFromRateLimits(stats.rateLimits);
+  const primaryWindow = quotaWindows[0] || null;
+  const secondaryWindow = quotaWindows[1] || null;
   return {
-    primaryUsed: stats.rateLimits?.primary?.used_percent ?? existing.primaryUsed ?? null,
-    secondaryUsed: stats.rateLimits?.secondary?.used_percent ?? existing.secondaryUsed ?? null,
-    primaryResetsAt: stats.rateLimits?.primary?.resets_at ?? existing.primaryResetsAt ?? null,
-    secondaryResetsAt: stats.rateLimits?.secondary?.resets_at ?? existing.secondaryResetsAt ?? null,
-    primaryWindowMinutes: stats.rateLimits?.primary?.window_minutes ?? existing.primaryWindowMinutes ?? null,
-    secondaryWindowMinutes: stats.rateLimits?.secondary?.window_minutes ?? existing.secondaryWindowMinutes ?? null,
+    quotaWindows: quotaWindows.length ? quotaWindows : existing.quotaWindows || [],
+    primaryUsed: primaryWindow?.used_percent ?? stats.rateLimits?.primary?.used_percent ?? existing.primaryUsed ?? null,
+    secondaryUsed: secondaryWindow?.used_percent ?? stats.rateLimits?.secondary?.used_percent ?? existing.secondaryUsed ?? null,
+    primaryResetsAt: primaryWindow?.resets_at ?? stats.rateLimits?.primary?.resets_at ?? existing.primaryResetsAt ?? null,
+    secondaryResetsAt: secondaryWindow?.resets_at ?? stats.rateLimits?.secondary?.resets_at ?? existing.secondaryResetsAt ?? null,
+    primaryWindowMinutes: primaryWindow?.window_minutes ?? stats.rateLimits?.primary?.window_minutes ?? existing.primaryWindowMinutes ?? null,
+    secondaryWindowMinutes: secondaryWindow?.window_minutes ?? stats.rateLimits?.secondary?.window_minutes ?? existing.secondaryWindowMinutes ?? null,
     plan: stats.rateLimits?.plan_type || existing.plan || null,
     contextUsed: getContextPercent(stats) ?? existing.contextUsed ?? null,
     rateLimitFingerprint: stats.rateLimitFingerprint || existing.rateLimitFingerprint || '',
@@ -462,19 +472,20 @@ function statsFromProfileSnapshot(profile) {
   const snapshot = profile?.snapshot || {};
   const hasPrimary = finiteNumber(snapshot.primaryUsed) !== null;
   const hasSecondary = finiteNumber(snapshot.secondaryUsed) !== null;
+  const storedWindows = Array.isArray(snapshot.quotaWindows) ? snapshot.quotaWindows : [];
   const hasContext = finiteNumber(snapshot.contextUsed) !== null;
-  if (!hasPrimary && !hasSecondary && !hasContext && !snapshot.plan) return null;
+  if (!hasPrimary && !hasSecondary && !storedWindows.length && !hasContext && !snapshot.plan) return null;
 
-  const primary = hasPrimary ? {
+  const primary = storedWindows[0] || (hasPrimary ? {
     used_percent: snapshot.primaryUsed,
     resets_at: snapshot.primaryResetsAt ?? null,
     window_minutes: snapshot.primaryWindowMinutes ?? 300
-  } : null;
-  const secondary = hasSecondary ? {
+  } : null);
+  const secondary = storedWindows[1] || (hasSecondary ? {
     used_percent: snapshot.secondaryUsed,
     resets_at: snapshot.secondaryResetsAt ?? null,
     window_minutes: snapshot.secondaryWindowMinutes ?? 10080
-  } : null;
+  } : null);
 
   return {
     timestamp: snapshot.timestamp || profile.lastSeen || Date.now(),
@@ -490,7 +501,8 @@ function statsFromProfileSnapshot(profile) {
     rateLimits: {
       plan_type: snapshot.plan || null,
       primary,
-      secondary
+      secondary,
+      windows: storedWindows
     },
     rateLimitFingerprint: snapshot.rateLimitFingerprint || '',
     activeSessions: 0,
@@ -507,6 +519,52 @@ function accountDisplayLabel(account) {
   return account?.mode || 'Cuenta de Codex';
 }
 
+function planPolicyText(policy = currentPlanPolicy) {
+  const es = languageTag() === 'es';
+  if (!policy || policy.isPending) {
+    return {
+      title: es ? 'Detectando plan' : 'Detecting plan',
+      detail: es
+        ? 'Abre Codex o inicia un chat para que Codex Gestion lea primero el plan local y active la estrategia correcta.'
+        : 'Open Codex or start a chat so Codex Gestion can read the local plan first and enable the right strategy.',
+      action: es ? 'Buscar plan primero' : 'Find plan first'
+    };
+  }
+  if (policy.shouldSuggestUpgrade) {
+    return {
+      title: es ? 'Plan de entrada' : 'Starter plan',
+      detail: es
+        ? 'Gestiono la extension con ritmo conservador y, al llegar al limite, priorizo esperar la renovacion o mejorar el plan.'
+        : 'The extension uses a conservative rhythm and, at the limit, prioritizes waiting for reset or upgrading the plan.',
+      action: es ? 'Esperar renovacion o mejorar plan' : 'Wait for reset or upgrade'
+    };
+  }
+  if (policy.canBuyCredits) {
+    return {
+      title: es ? 'Plan con creditos flexibles' : 'Flexible credits plan',
+      detail: es
+        ? 'Si las cuotas se agotan, el panel orienta a usar creditos disponibles en Codex Settings > Usage.'
+        : 'If quotas run out, the panel points to credits available from Codex Settings > Usage.',
+      action: es ? 'Usar creditos cuando aplique' : 'Use credits when available'
+    };
+  }
+  if (policy.adminManaged) {
+    return {
+      title: es ? 'Plan de workspace' : 'Workspace plan',
+      detail: es
+        ? 'La extension muestra cuotas locales y asume que limites, creditos y permisos pueden depender del administrador.'
+        : 'The extension shows local quotas and assumes limits, credits, and permissions can depend on an admin.',
+      action: es ? 'Revisar con admin si hay limite' : 'Check with admin at limit'
+    };
+  }
+  return {
+    title: es ? 'Plan observado' : 'Observed plan',
+    detail: es
+      ? 'La extension se adapta a las ventanas de cuota que Codex registra para esta cuenta.'
+      : 'The extension adapts to the quota windows Codex records for this account.',
+    action: es ? 'Seguir cuotas locales' : 'Follow local quotas'
+  };
+}
 function planDisplay(stats) {
   const plan = stats?.rateLimits?.plan_type
     ? String(stats.rateLimits.plan_type).toUpperCase()
@@ -516,12 +574,182 @@ function planDisplay(stats) {
   return { label: plan, detail: t('localObservedData') };
 }
 
+const ACCOUNT_VISUAL_COLORS = [
+  '#4ec9b0', '#60a5fa', '#c586c0', '#d7ba7d', '#89d185', '#f48771', '#b5cea8', '#9cdcfe'
+];
+
+function hashString(value) {
+  let hash = 0;
+  const text = String(value || '');
+  for (let index = 0; index < text.length; index += 1) {
+    hash = ((hash << 5) - hash + text.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function hexToRgb(hex) {
+  const normalized = String(hex || '').replace('#', '');
+  const value = Number.parseInt(normalized, 16);
+  if (!Number.isFinite(value)) return { r: 78, g: 201, b: 176 };
+  return {
+    r: (value >> 16) & 255,
+    g: (value >> 8) & 255,
+    b: value & 255
+  };
+}
+
+function accountIdentityDetail(profile) {
+  const pieces = [];
+  if (profile?.email && profile.email !== profile.label) pieces.push(profile.email);
+  if (profile?.name && profile.name !== profile.label && profile.name !== profile.email) pieces.push(profile.name);
+  if (!pieces.length && profile?.accountSuffix) pieces.push(String(profile.mode || 'codex').toUpperCase() + ' ...' + profile.accountSuffix);
+  return pieces.join(' - ') || t('accountDefault');
+}
+
+function accountVisual(profile) {
+  const seed = profile?.id || profile?.email || profile?.label || 'codex';
+  const color = ACCOUNT_VISUAL_COLORS[hashString(seed) % ACCOUNT_VISUAL_COLORS.length];
+  const { r, g, b } = hexToRgb(color);
+  const label = String(profile?.label || profile?.email || profile?.name || t('accountDefault')).trim();
+  const source = label || accountIdentityDetail(profile);
+  const words = source.split(/[\s@._-]+/).filter(Boolean);
+  const initials = (words.length >= 2 ? `${words[0][0]}${words[1][0]}` : source.slice(0, 2)).toUpperCase();
+  return {
+    color,
+    background: `rgba(${r}, ${g}, ${b}, 0.16)`,
+    border: `rgba(${r}, ${g}, ${b}, 0.55)`,
+    initials: initials || 'C',
+    detail: accountIdentityDetail(profile)
+  };
+}
+
+function accountQuickPickItem(profile, activeId = '') {
+  const snapshot = profile?.snapshot || {};
+  const visual = accountVisual(profile);
+  const status = profile.id === activeId
+    ? t('currentAccount')
+    : profile.credentialsStored
+      ? t('savedAccountReadyLong')
+      : t('historyOnlyNoCredential');
+  const quotas = snapshotQuotaSummaries(snapshot);
+  return {
+    label: `${profile.id === activeId ? '$(check) ' : '$(circle-filled) '}${profile.label}`,
+    description: status,
+    detail: [visual.detail, ...quotas].filter(Boolean).join(' - '),
+    action: 'profile',
+    profileId: profile.id,
+    credentialsStored: Boolean(profile.credentialsStored)
+  };
+}
+
 function statsBelongsToAnotherProfile(profileId, profiles, stats) {
   if (!stats || stats.isSnapshotFallback || !stats.rateLimitFingerprint) return false;
   return profiles.some(profile =>
     profile.id !== profileId &&
     profile.snapshot?.rateLimitFingerprint === stats.rateLimitFingerprint
   );
+}
+
+function quotaWindowsFromRateLimits(rateLimits) {
+  if (!rateLimits || typeof rateLimits !== 'object') return [];
+  const reserved = new Set(['limit_id', 'plan_type', 'tier', 'account_id', 'organization_id']);
+  const windows = [];
+  const pushLimit = (key, value, fallbackIndex) => {
+    if (!value || typeof value !== 'object') return;
+    if (finiteNumber(value.used_percent) === null && finiteNumber(value.resets_at) === null) return;
+    const windowMinutes = finiteNumber(value.window_minutes);
+    windows.push({
+      id: String(value.limit_id || value.id || key || 'quota-' + fallbackIndex),
+      key: String(key || 'quota-' + fallbackIndex),
+      used_percent: value.used_percent,
+      resets_at: value.resets_at ?? null,
+      window_minutes: windowMinutes,
+      label: value.label || value.name || '',
+      order: value === rateLimits.primary ? 0 : value === rateLimits.secondary ? 1 : fallbackIndex + 2
+    });
+  };
+
+  if (Array.isArray(rateLimits.windows)) {
+    rateLimits.windows.forEach((limit, index) => pushLimit(limit?.name || limit?.key, limit, index));
+  }
+  if (Array.isArray(rateLimits.quotas)) {
+    rateLimits.quotas.forEach((limit, index) => pushLimit(limit?.name || limit?.key, limit, index + windows.length));
+  }
+  for (const [key, value] of Object.entries(rateLimits)) {
+    if (reserved.has(key)) continue;
+    if (Array.isArray(value)) {
+      value.forEach((limit, index) => pushLimit(limit?.name || key + '-' + (index + 1), limit, index + windows.length));
+      continue;
+    }
+    pushLimit(key, value, windows.length);
+  }
+
+  const seen = new Set();
+  return windows
+    .filter(limit => {
+      const fingerprint = [limit.key, limit.window_minutes ?? '', limit.resets_at ?? ''].join(':');
+      if (seen.has(fingerprint)) return false;
+      seen.add(fingerprint);
+      return true;
+    })
+    .sort((left, right) => {
+      const leftMinutes = finiteNumber(left.window_minutes);
+      const rightMinutes = finiteNumber(right.window_minutes);
+      if (leftMinutes !== null && rightMinutes !== null && leftMinutes !== rightMinutes) {
+        return leftMinutes - rightMinutes;
+      }
+      return left.order - right.order;
+    });
+}
+
+function quotaWindowLabel(limit, index = 0) {
+  if (limit?.label) return limit.label;
+  const window = windowLabel(limit?.window_minutes);
+  if (window !== 'limite') return window;
+  if (limit?.key && !/^quota-\d+$/.test(limit.key)) return limit.key.replace(/_/g, ' ');
+  return t('quotaNumber', { number: index + 1 });
+}
+
+function quotaWindowTitle(limit, index = 0) {
+  return t('quotaOf', { window: quotaWindowLabel(limit, index) });
+}
+
+function quotaTone(limit) {
+  const used = Number(limit?.used_percent);
+  return Number(used) >= 90 ? 'danger' : Number(used) >= 75 ? 'warning' : 'accent';
+}
+
+function snapshotQuotaWindows(snapshot) {
+  const stored = Array.isArray(snapshot?.quotaWindows) ? snapshot.quotaWindows : [];
+  if (stored.length) return stored;
+  const windows = [];
+  if (snapshot?.primaryUsed != null) {
+    windows.push({
+      key: 'primary',
+      used_percent: snapshot.primaryUsed,
+      resets_at: snapshot.primaryResetsAt ?? null,
+      window_minutes: snapshot.primaryWindowMinutes ?? 300
+    });
+  }
+  if (snapshot?.secondaryUsed != null) {
+    windows.push({
+      key: 'secondary',
+      used_percent: snapshot.secondaryUsed,
+      resets_at: snapshot.secondaryResetsAt ?? null,
+      window_minutes: snapshot.secondaryWindowMinutes ?? 10080
+    });
+  }
+  return windows;
+}
+
+function snapshotQuotaSummaries(snapshot, maxItems = 2) {
+  const windows = snapshotQuotaWindows(snapshot).slice(0, maxItems);
+  if (!windows.length) return [t('quotaDataPending')];
+  return windows.map((limit, index) => {
+    const available = availablePercent(limit.used_percent);
+    const value = available === null ? '--' : Math.round(available) + '% ' + t('free');
+    return quotaWindowLabel(limit, index) + ': ' + value;
+  });
 }
 
 async function rememberAccount(account, stats) {
@@ -636,8 +864,7 @@ function buildTooltip(stats) {
   };
   tooltip.supportHtml = true;
   const rateLimits = stats.rateLimits;
-  const primary = rateLimits?.primary;
-  const secondary = rateLimits?.secondary;
+  const quotaWindows = quotaWindowsFromRateLimits(rateLimits);
   const accountLabel = stats.accountLabel || t('accountDefault');
   const planInfo = planDisplay(stats);
   const updatedAt = new Date(lastRefreshAt || Date.now()).toLocaleTimeString([], {
@@ -659,10 +886,16 @@ function buildTooltip(stats) {
     );
   }
 
-  tooltip.appendMarkdown(formatTooltipQuota(t('quota5h'), primary));
-  tooltip.appendMarkdown('---\n\n');
-  tooltip.appendMarkdown(formatTooltipQuota(t('quota7d'), secondary));
-  tooltip.appendMarkdown('---\n\n');
+  const tooltipQuotas = quotaWindows.length ? quotaWindows : [rateLimits?.primary, rateLimits?.secondary].filter(Boolean);
+  if (tooltipQuotas.length) {
+    tooltipQuotas.forEach((limit, index) => {
+      if (index > 0) tooltip.appendMarkdown('---\n\n');
+      tooltip.appendMarkdown(formatTooltipQuota(quotaWindowTitle(limit, index), limit));
+    });
+    tooltip.appendMarkdown('---\n\n');
+  } else {
+    tooltip.appendMarkdown(escapeMarkdown(t('quotaDataPending')) + '\n\n---\n\n');
+  }
   tooltip.appendMarkdown(
     `<sub>${escapeHtml(t('updated', { time: updatedAt }))} ` +
     `${stats.isSnapshotFallback ? `&nbsp;|&nbsp; ${escapeHtml(t('savedSummary'))} ` : ''}` +
@@ -675,38 +908,52 @@ function formatTooltipQuota(label, limit) {
   const used = finiteNumber(limit?.used_percent);
   const usedPercent = used === null ? null : clampPercent(used);
   const available = usedPercent === null ? null : 100 - usedPercent;
-  const resetLabel = limit ? formatResetMoment(limit.resets_at) : t('noData');
+  const resetMoment = limit ? formatResetMoment(limit.resets_at) : t('noData');
+  const resetFull = limit ? formatResetFull(limit.resets_at) : t('noData');
 
   if (usedPercent === null || available === null) {
     return (
-      `**${escapeMarkdown(label)}** &nbsp; <sub>${escapeMarkdown(t('renews', { value: resetLabel }))}</sub>\n\n` +
-      `<sub>${escapeHtml(t('noVisualReading'))}</sub>\n\n`
+      `**${escapeMarkdown(label)}**
+
+` +
+      `<sub>${escapeHtml(t('renewsFull', { time: resetFull }))} &nbsp;|&nbsp; ${escapeHtml(t('noVisualReading'))}</sub>
+
+`
     );
   }
 
+  const availableLabel = `${Math.round(available)}% ${t('free')}`;
+  const usedLabel = `${Math.round(usedPercent)}% ${t('used')}`;
   return (
-    tooltipQuotaCard(label, usedPercent, available, resetLabel) +
-    `\n\n<sub>${escapeHtml(Math.round(usedPercent))}% ${escapeHtml(t('used'))} &nbsp;|&nbsp; ${escapeHtml(Math.round(available))}% ${escapeHtml(t('free'))}</sub>\n\n`
+    `**${escapeMarkdown(label)}:** ${escapeMarkdown(availableLabel)}
+
+` +
+    `<sub>${escapeHtml(t('renewsFull', { time: resetFull }))} &nbsp;|&nbsp; ${escapeHtml(usedLabel)}</sub>
+
+` +
+    tooltipQuotaCard(label, usedPercent, available, resetMoment) +
+    `
+
+`
   );
 }
-
 function tooltipQuotaCard(label, usedPercent, availablePercentValue, resetLabel) {
   const used = Math.round(clampPercent(usedPercent));
   const available = Math.max(0, 100 - used);
   const tone = used >= 90 ? '#f48771' : used >= 75 ? '#cca700' : '#4ec9b0';
-  const width = 244;
+  const width = 304;
   const height = 86;
-  const trackWidth = 212;
+  const trackWidth = 272;
   const fillWidth = Math.max(4, Math.round((available / 100) * trackWidth));
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
       <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="8" fill="#252526" stroke="#3c3c3c"/>
       <text x="14" y="23" fill="#f3f3f3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">${escapeHtml(label)}</text>
-      <text x="230" y="23" fill="#a6a6a6" font-family="Segoe UI, Arial, sans-serif" font-size="10" text-anchor="end">${escapeHtml(resetLabel)}</text>
+      <text x="290" y="23" fill="#a6a6a6" font-family="Segoe UI, Arial, sans-serif" font-size="10" text-anchor="end">${escapeHtml(resetLabel)}</text>
       <rect x="14" y="38" width="${trackWidth}" height="13" rx="6.5" fill="#3a3a3a"/>
       <rect x="14" y="38" width="${fillWidth}" height="13" rx="6.5" fill="${tone}"/>
       <text x="14" y="70" fill="#a6a6a6" font-family="Segoe UI, Arial, sans-serif" font-size="11">${escapeHtml(used)}% ${escapeHtml(t('used'))}</text>
-      <text x="230" y="70" fill="#f3f3f3" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" text-anchor="end">${escapeHtml(available)}% ${escapeHtml(t('free'))}</text>
+      <text x="290" y="70" fill="#f3f3f3" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" text-anchor="end">${escapeHtml(available)}% ${escapeHtml(t('free'))}</text>
     </svg>`;
   const encoded = Buffer.from(svg, 'utf8').toString('base64');
   return `<img src="data:image/svg+xml;base64,${encoded}" alt="${escapeHtml(label)}: ${escapeHtml(available)}% ${escapeHtml(t('free'))}" width="${width}" height="${height}">`;
@@ -774,7 +1021,7 @@ function updateStatusBar(stats) {
     return;
   }
 
-  const primary = stats.rateLimits?.primary;
+  const primary = quotaWindowsFromRateLimits(stats.rateLimits)[0] || stats.rateLimits?.primary;
   const pieces = [];
 
   const primaryAvailable = availablePercent(primary?.used_percent);
@@ -835,18 +1082,21 @@ async function performRefresh(showNotification) {
     }
     latestError = null;
     await rememberAccount(account, latestStats);
+    const refreshedProfile = account.hasCredentials
+      ? getAccountProfiles().find(candidate => candidate.id === accountProfileId(account))
+      : null;
+    currentPlanPolicy = planPolicyFrom(latestStats, refreshedProfile);
     if (latestStats) {
-      const profile = account.hasCredentials
-        ? getAccountProfiles().find(candidate => candidate.id === accountProfileId(account))
-        : null;
-      latestStats.accountLabel = profile?.label || accountDisplayLabel(account);
+      latestStats.accountLabel = refreshedProfile?.label || accountDisplayLabel(account);
     }
   } catch (error) {
     latestStats = null;
     latestError = error instanceof Error ? error : new Error(String(error));
+    currentPlanPolicy = planPolicyFrom(null, null);
   } finally {
     lastRefreshDurationMs = Date.now() - startedAt;
     lastRefreshAt = Date.now();
+    scheduleRefresh();
     updateStatusBar(latestStats);
     updateDashboard();
     void refreshProjectContextIfPresent('refresh');
@@ -860,8 +1110,11 @@ async function performRefresh(showNotification) {
         ? 'Mostrando el ultimo resumen guardado hasta que Codex genere datos nuevos.'
         : latestAuthStatus.state === 'invalid'
         ? latestAuthStatus.message
-        : latestStats.rateLimits?.primary
-        ? `Datos actualizados: ${formatPercent(availablePercent(latestStats.rateLimits.primary.used_percent))} disponible en la cuota de 5 h.`
+        : quotaWindowsFromRateLimits(latestStats.rateLimits)[0]
+        ? (() => {
+          const limit = quotaWindowsFromRateLimits(latestStats.rateLimits)[0];
+          return `Datos actualizados: ${formatPercent(availablePercent(limit.used_percent))} disponible en ${quotaWindowTitle(limit, 0).toLowerCase()}.`;
+        })()
         : 'Datos actualizados, pero las cuotas no estan disponibles.';
       vscode.window.showInformationMessage(message);
     }
@@ -975,17 +1228,16 @@ async function switchAccount() {
   const profiles = getAccountProfiles();
   const items = profiles
     .filter(profile => profile.id !== activeId)
-    .map(profile => ({
-      label: `$(account) ${profile.label}`,
-      description: profile.credentialsStored
-        ? t('savedAccountReady')
-        : t('historyOnly'),
-      detail: profile.credentialsStored
-        ? `Ultimo uso: ${new Date(profile.lastSeen).toLocaleString()}`
-        : t('needsLoginAgain'),
-      profileId: profile.id,
-      credentialsStored: Boolean(profile.credentialsStored)
-    }));
+    .map(profile => {
+      const item = accountQuickPickItem(profile, activeId);
+      return {
+        ...item,
+        description: profile.credentialsStored
+          ? t('savedAccountReady')
+          : t('historyOnly'),
+        detail: `${accountVisual(profile).detail} - ${profile.credentialsStored ? `${t('lastUsed')}: ${new Date(profile.lastSeen).toLocaleString()}` : t('needsLoginAgain')}`
+      };
+    });
 
   if (!items.length) {
     const action = await vscode.window.showInformationMessage(
@@ -1290,6 +1542,10 @@ function buildDiagnostics() {
     `Newest session modified: ${newestSession ? new Date(newestSession.mtimeMs).toISOString() : 'none'}`,
     `Open workspace folders: ${workspaceCount}`,
     `Latest stats available: ${Boolean(latestStats)}`,
+    `Plan policy: ${currentPlanPolicy.label} / ${currentPlanPolicy.family} / ${currentPlanPolicy.source}`,
+    `Plan can buy credits: ${currentPlanPolicy.canBuyCredits}`,
+    `Plan admin managed: ${currentPlanPolicy.adminManaged}`,
+    `Effective refresh interval: ${scheduledRefreshSeconds || 'not scheduled'} s`,
     `Last refresh duration: ${lastRefreshDurationMs} ms`,
     `Latest error: ${latestError ? latestError.stack || latestError.message : 'none'}`,
     '',
@@ -1333,12 +1589,58 @@ function getGitContextSummary(root) {
   const branch = statusLines[0] || 'sin datos';
   const changes = statusLines.slice(1);
   const lastCommit = runGit(root, ['log', '-1', '--oneline'], 'sin datos');
+  const recentCommitsRaw = runGit(root, ['log', '-3', '--oneline'], '');
   return {
     branch,
     lastCommit,
+    recentCommits: recentCommitsRaw ? recentCommitsRaw.split(/\r?\n/).filter(Boolean).slice(0, 3) : [],
     dirtyCount: changes.length,
     dirtyPreview: changes.slice(0, 8)
   };
+}
+
+function readJsonFileSafe(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function cleanContextLine(value, maxLength = 180) {
+  return sanitizeContextExcerpt(value, maxLength)
+    .replace(/^[\s\-*[\]xX.]+/, '')
+    .replace(new RegExp(String.fromCharCode(96), 'g'), "'")
+    .trim();
+}
+
+function getProjectIdentitySummary(root) {
+  const packageJson = root ? readJsonFileSafe(path.join(root, 'package.json')) : null;
+  return {
+    name: packageJson?.displayName || packageJson?.name || 'Proyecto sin nombre detectado',
+    description: packageJson?.description || 'Sin descripcion detectada',
+    version: packageJson?.version || 'sin version detectada'
+  };
+}
+
+function getRoadmapContextSummary(root, limit = 6) {
+  if (!root) return { exists: false, items: [] };
+  const roadmapPath = path.join(root, 'ROADMAP.md');
+  if (!fs.existsSync(roadmapPath)) return { exists: false, items: [] };
+  try {
+    const content = fs.readFileSync(roadmapPath, 'utf8');
+    const items = [];
+    for (const line of content.split(/\r?\n/)) {
+      const match = line.match(/^\s*-\s+\[ \]\s+(.+)$/);
+      if (!match) continue;
+      const item = cleanContextLine(match[1]);
+      if (item) items.push(item);
+      if (items.length >= limit) break;
+    }
+    return { exists: true, items };
+  } catch {
+    return { exists: true, items: [] };
+  }
 }
 
 function formatContextQuota(label, limit) {
@@ -1351,6 +1653,14 @@ function formatContextQuota(label, limit) {
     ? '; ojo: el dato puede estar antiguo'
     : '';
   return `- ${label}: ${formatPercent(available)} disponible; se renueva ${reset}${freshness}`;
+}
+
+function formatContextQuotas(rateLimits) {
+  const windows = quotaWindowsFromRateLimits(rateLimits);
+  if (!windows.length) {
+    return ['- Cuotas locales: pendiente de recoger datos; abre Codex con esta cuenta o inicia un chat nuevo'];
+  }
+  return windows.map((limit, index) => formatContextQuota(quotaWindowTitle(limit, index), limit));
 }
 
 function formatContextPercent(stats) {
@@ -1447,6 +1757,49 @@ function extractSessionConversationItems(filePath, limit = 8) {
   return items.reverse();
 }
 
+function buildDecisionSignalsSection(workspaceRoot, identity) {
+  const lines = [
+    '### Objetivo y decisiones inferidas',
+    '',
+    `- Objetivo probable: mantener y evolucionar ${identity.name} (${identity.description}).`
+  ];
+
+  if (!projectContextIncludesSessionExcerpts()) {
+    lines.push('- Senales conversacionales desactivadas por configuracion.');
+    return lines;
+  }
+
+  const files = getSessionFiles(SESSION_ROOT, 0) || [];
+  const workspaceNormalized = workspaceRoot ? normalizeFsPath(workspaceRoot) : '';
+  const selected = files.slice(0, 30).map(file => {
+    const meta = readSessionMeta(file.path) || {};
+    const cwd = meta.cwd || meta.workspace || '';
+    const sameWorkspace = workspaceNormalized && cwd && normalizeFsPath(cwd) === workspaceNormalized;
+    return { ...file, sameWorkspace };
+  }).sort((left, right) => Number(right.sameWorkspace) - Number(left.sameWorkspace) || right.mtimeMs - left.mtimeMs).slice(0, 3);
+
+  const signalPattern = /quiero|vamos|perfecto|decid|licencia|release|marketplace|idioma|contexto|cuenta|build|vsix|readme|roadmap/i;
+  const signals = [];
+  for (const file of selected) {
+    for (const item of extractSessionConversationItems(file.path, 10)) {
+      if (!signalPattern.test(item.excerpt)) continue;
+      const excerpt = sanitizeContextExcerpt(item.excerpt.replace(/\n/g, ' '), 220);
+      if (excerpt && !signals.includes(excerpt)) signals.push(excerpt);
+      if (signals.length >= 5) break;
+    }
+    if (signals.length >= 5) break;
+  }
+
+  if (!signals.length) {
+    lines.push('- No se detectaron decisiones recientes claras en las sesiones locales.');
+    return lines;
+  }
+
+  lines.push('- Senales recientes detectadas en sesiones locales:');
+  for (const signal of signals) lines.push(`  - ${signal}`);
+  return lines;
+}
+
 function buildSessionContinuitySection(workspaceRoot) {
   if (!projectContextIncludesSessionExcerpts()) {
     return [
@@ -1512,7 +1865,10 @@ function buildProjectContextAutoBlock(reason = 'manual') {
       ? 'Actualizacion manual'
       : 'Apertura/creacion';
   const git = getGitContextSummary(workspaceRoot);
+  const roadmap = getRoadmapContextSummary(workspaceRoot);
+  const identity = getProjectIdentitySummary(workspaceRoot);
   const plan = latestStats ? planDisplay(latestStats) : null;
+  const planStrategy = planPolicyText(currentPlanPolicy);
   const localDataAge = latestStats?.timestamp
     ? `${new Date(latestStats.timestamp).toLocaleString()}`
     : 'sin datos';
@@ -1522,6 +1878,12 @@ function buildProjectContextAutoBlock(reason = 'manual') {
   const dirtyPreview = git.dirtyPreview.length
     ? git.dirtyPreview.map(line => `  - ${line}`)
     : ['  - sin cambios locales detectados'];
+  const recentCommits = git.recentCommits.length
+    ? git.recentCommits.map(line => `  - ${line}`)
+    : ['  - sin commits recientes detectados'];
+  const roadmapItems = roadmap.items.length
+    ? roadmap.items.map(item => `  - ${item}`)
+    : [roadmap.exists ? '  - ROADMAP.md existe, pero no hay tareas pendientes marcadas.' : '  - No se encontro ROADMAP.md; revisar README/CHANGELOG y estado Git.'];
 
   return [
     PROJECT_CONTEXT_START,
@@ -1530,6 +1892,9 @@ function buildProjectContextAutoBlock(reason = 'manual') {
     '### Proyecto',
     '',
     `- Carpeta/workspace: ${workspaceName}`,
+    `- Nombre detectado: ${identity.name}`,
+    `- Descripcion detectada: ${identity.description}`,
+    `- Version del proyecto: ${identity.version}`,
     `- Actualizado por Codex Gestion: ${new Date().toLocaleString()}`,
     `- Motivo: ${reasonLabel}`,
     `- Extension: Codex Gestion v${extensionContext.extension.packageJSON.version}`,
@@ -1538,9 +1903,9 @@ function buildProjectContextAutoBlock(reason = 'manual') {
     '',
     `- Cuenta activa al generar este contexto: ${accountLabel}`,
     `- Estado de sesion: ${latestAuthStatus.state} - ${latestAuthStatus.message}`,
-    formatContextQuota('Cuota 5 h', limits.primary),
-    formatContextQuota('Cuota 7 dias', limits.secondary),
+    ...formatContextQuotas(limits),
     plan ? `- Plan local observado: ${plan.label} (${plan.detail})` : '- Plan local observado: pendiente de recoger datos',
+    `- Estrategia segun plan: ${planStrategy.title} - ${planStrategy.action}`,
     `- Ultimo dato local de Codex: ${localDataAge}`,
     `- Sesiones locales activas detectadas: ${latestStats?.activeSessions || 0}`,
     formatContextPercent(latestStats),
@@ -1552,11 +1917,28 @@ function buildProjectContextAutoBlock(reason = 'manual') {
     `- Working tree: ${dirtySummary}`,
     ...dirtyPreview,
     '',
+    '### Cambios recientes del repo',
+    '',
+    ...recentCommits,
+    '',
+    '### Proximos pasos probables',
+    '',
+    '- Detectados desde ROADMAP.md y el estado actual del repositorio:',
+    ...roadmapItems,
+    '',
+    ...buildDecisionSignalsSection(workspaceRoot, identity),
+    '',
+    '### Lectura automatica por Codex',
+    '',
+    '- Codex lee automaticamente AGENTS.md al iniciar una sesion, pero no se puede asumir que lea PROJECT_CONTEXT.md si nadie se lo abre, pega o referencia.',
+    '- Para continuidad automatica, crea un AGENTS.md pequeno en la raiz que pida leer .codex-gestion/PROJECT_CONTEXT.md antes de trabajar.',
+    '- Este archivo sigue siendo util como handoff manual: abrelo desde el panel o copia el prompt final en otro chat/cuenta.',
+    '',
     ...buildSessionContinuitySection(workspaceRoot),
     '',
     '### Para el siguiente chat/cuenta',
     '',
-    '- Lee primero las secciones editables de este documento: Objetivo, Estado actual, Decisiones, Riesgos y Proximos pasos.',
+    '- Lee primero este bloque automatico: proyecto, Git, proximos pasos y continuidad conversacional local.',
     '- Antes de cambiar archivos, ejecuta `git status --short --branch` y revisa si hay cambios sin commit.',
     '- Si vienes de otra cuenta, no asumas que las cuotas o contexto de chat se suman; continua desde este documento y desde el repo.',
     '- Si el dato de cuota aparece vencido o antiguo, abre Codex con la cuenta activa e inicia/continua un chat para refrescar estadisticas.',
@@ -1574,8 +1956,9 @@ function buildInitialProjectContext(reason) {
     '## Como usar este archivo',
     '',
     '- Este documento lo mantiene Codex Gestion para continuar trabajo entre chats o cuentas.',
-    '- El bloque automatico recoge estado local, Git, cuotas y extractos recientes de sesiones locales.',
-    '- Puedes editar notas debajo si quieres, pero no hace falta rellenarlo manualmente para que sea util.',
+    '- El bloque automatico recoge estado local, Git, cuotas, roadmap y extractos recientes de sesiones locales.',
+    '- No hace falta rellenarlo manualmente: el objetivo es que el siguiente chat tenga una lectura rapida del estado real del repo.',
+    '- Codex no lee este archivo por si solo salvo que se lo abras, lo pegues o lo referencies desde una instruccion automatica como AGENTS.md.',
     '',
     '## Archivos importantes detectados para este proyecto',
     '',
@@ -1594,7 +1977,7 @@ function buildInitialProjectContext(reason) {
     'Copia desde aqui cuando quieras continuar con otra cuenta o chat:',
     '',
     '```text',
-    'Continua este proyecto usando .codex-gestion/PROJECT_CONTEXT.md como contexto principal. Lee el resumen automatico, revisa el estado Git y los extractos de sesiones locales, y antes de editar ejecuta git status --short --branch. No asumas que las cuotas o el contexto del chat anterior se suman al cambiar de cuenta.',
+    'Continua este proyecto usando .codex-gestion/PROJECT_CONTEXT.md como contexto principal. Lee el resumen automatico, revisa Git, proximos pasos y extractos de sesiones locales, y antes de editar ejecuta git status --short --branch. No asumas que las cuotas o el contexto del chat anterior se suman al cambiar de cuenta.',
     '```',
     ''
   ].join('\n');
@@ -1686,34 +2069,42 @@ function accountCards(activeProfileId) {
 
   return profiles.map(profile => {
     const snapshot = visibleAccountSnapshot(profile, profiles, activeProfileId);
-    const primary = snapshot?.primaryUsed;
-    const secondary = snapshot?.secondaryUsed;
+    const quotaSummaries = snapshotQuotaWindows(snapshot).slice(0, 2);
     const isActive = profile.id === activeProfileId;
     const plan = snapshot?.plan
       ? `Plan local ${String(snapshot.plan).toUpperCase()}`
       : t('localPlanPending');
+    const visual = accountVisual(profile);
+    const statusBadge = isActive
+      ? `<span class="badge">${escapeHtml(t('activeNow'))}</span>`
+      : profile.credentialsStored
+        ? `<span class="badge muted">${escapeHtml(t('readyToUse'))}</span>`
+        : `<span class="badge muted">${escapeHtml(t('historyOnly'))}</span>`;
     const cardTitle = isActive
       ? t('manageActiveAccount')
       : profile.credentialsStored
         ? t('activateOrManageAccount')
         : t('manageAccountHistory');
+    const style = ` style="--account-color: ${escapeHtml(visual.color)}; --account-bg: ${escapeHtml(visual.background)}; --account-border: ${escapeHtml(visual.border)};"`;
     const cardAction = ` data-action="accountCard" data-profile="${escapeHtml(profile.id)}" role="button" tabindex="0" title="${escapeHtml(cardTitle)}"`;
     return `
-      <article class="account-card ${isActive ? 'active' : 'selectable'}"${cardAction}>
+      <article class="account-card ${isActive ? 'active' : 'selectable'}"${style}${cardAction}>
         <div class="account-main">
-          <div class="account-title">
-            <strong>${escapeHtml(profile.label)}</strong>
-            ${isActive
-              ? `<span class="badge">${escapeHtml(t('activeNow'))}</span>`
-              : profile.credentialsStored
-                ? `<span class="badge muted">${escapeHtml(t('readyToUse'))}</span>`
-                : `<span class="badge muted">${escapeHtml(t('historyOnly'))}</span>`}
+          <div class="account-avatar" aria-hidden="true">${escapeHtml(visual.initials)}</div>
+          <div class="account-copy">
+            <div class="account-title">
+              <strong>${escapeHtml(profile.label)}</strong>
+              ${statusBadge}
+            </div>
+            <span class="account-detail">${escapeHtml(visual.detail)}</span>
+            <span class="account-plan">${escapeHtml(String(profile.mode).toUpperCase())} - ${escapeHtml(plan)}</span>
           </div>
-          <span>${escapeHtml(String(profile.mode).toUpperCase())} - ${escapeHtml(plan)}</span>
         </div>
         <div class="account-usage">
-          <div><small>${escapeHtml(t('quota5h'))}</small><strong>${primary == null ? escapeHtml(t('pending')) : `${Math.round(100 - primary)}% ${escapeHtml(t('free'))}`}</strong></div>
-          <div><small>${escapeHtml(t('quota7d'))}</small><strong>${secondary == null ? escapeHtml(t('pending')) : `${Math.round(100 - secondary)}% ${escapeHtml(t('free'))}`}</strong></div>
+          ${quotaSummaries.length ? quotaSummaries.map((limit, index) => {
+            const available = availablePercent(limit.used_percent);
+            return `<div><small>${escapeHtml(quotaWindowLabel(limit, index))}</small><strong>${available == null ? escapeHtml(t('pending')) : `${Math.round(available)}% ${escapeHtml(t('free'))}`}</strong></div>`;
+          }).join('') : `<div><small>${escapeHtml(t('quotas'))}</small><strong>${escapeHtml(t('pending'))}</strong></div>`}
         </div>
         <small class="account-seen">${escapeHtml(t('lastUsed'))}: ${escapeHtml(new Date(profile.lastSeen).toLocaleString())}</small>
         <div class="account-actions">
@@ -1740,6 +2131,27 @@ function visibleAccountSnapshot(profile, profiles, activeProfileId) {
   return snapshot;
 }
 
+function languageSelectorHtml() {
+  const selected = currentLanguageSetting();
+  const options = [
+    ['auto', t('languageAuto')],
+    ['es', t('languageSpanish')],
+    ['en', t('languageEnglish')]
+  ];
+  const buttons = options.map(([value, label]) => {
+    const active = selected === value;
+    return `<button class="${active ? 'active' : ''}" data-action="setLanguage" data-language="${escapeHtml(value)}" aria-pressed="${active ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
+  }).join('');
+  return `<div class="language-selector" role="group" aria-label="${escapeHtml(t('languageSelector'))}" title="${escapeHtml(t('languageSelector'))}">${buttons}</div>`;
+}
+
+async function setDashboardLanguage(value) {
+  if (!['auto', 'es', 'en'].includes(value)) return;
+  await vscode.workspace.getConfiguration('codexGestion').update('language', value, vscode.ConfigurationTarget.Global);
+  updateStatusBar(latestStats);
+  updateDashboard(true);
+}
+
 function dashboardHtml(webview) {
   const nonce = crypto.randomBytes(16).toString('hex');
   const extensionRoot = extensionContext.extensionPath || path.resolve(__dirname, '..');
@@ -1747,15 +2159,13 @@ function dashboardHtml(webview) {
   const account = readCurrentAccount();
   const activeProfileId = account.hasCredentials ? accountProfileId(account) : '';
   const limits = latestStats?.rateLimits || {};
-  const primaryPercent = limits.primary?.used_percent;
-  const secondaryPercent = limits.secondary?.used_percent;
-  const primaryAvailable = availablePercent(primaryPercent);
-  const secondaryAvailable = availablePercent(secondaryPercent);
+  const quotaWindows = quotaWindowsFromRateLimits(limits);
+  const displayedQuotaWindows = quotaWindows.length ? quotaWindows : [limits.primary, limits.secondary].filter(Boolean);
   const advice = getUsageAdvice(latestStats, latestAuthStatus);
   const profiles = getAccountProfiles();
   const activeProfile = profiles.find(profile => profile.id === activeProfileId);
-  const resetCandidates = [limits.primary?.resets_at, limits.secondary?.resets_at]
-    .map(Number)
+  const resetCandidates = displayedQuotaWindows
+    .map(limit => Number(limit?.resets_at))
     .filter(value => Number.isFinite(value) && value * 1000 > Date.now());
   const nextReset = resetCandidates.length ? Math.min(...resetCandidates) : null;
   const stateTitle = latestError
@@ -1785,7 +2195,16 @@ function dashboardHtml(webview) {
   const accountLabel = activeProfile?.label ||
     latestStats?.accountLabel ||
     (account.hasCredentials ? accountDisplayLabel(account) : t('noSession'));
+  const activeVisual = accountVisual(activeProfile || {
+    id: activeProfileId || account.id || accountLabel,
+    label: accountLabel,
+    email: account.email || '',
+    name: account.name || '',
+    mode: account.mode || 'codex',
+    accountSuffix: account.id ? account.id.slice(-6) : ''
+  });
   const planInfo = planDisplay(latestStats);
+  const planStrategy = planPolicyText(currentPlanPolicy);
   const panelSessionNotice = account.hasCredentials
     ? `<div class="notice warning-notice"><strong>${escapeHtml(t('activeLocalAccount'))}</strong>${escapeHtml(t('activeLocalAccountDetail'))}</div>`
     : '';
@@ -1824,6 +2243,16 @@ function dashboardHtml(webview) {
       h2 { font-size: 18px; margin: 32px 0 12px; }
       .subtitle, .metric-detail, .metric-hint, .account-card span, small { color: var(--vscode-descriptionForeground); }
       .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+      .header-controls {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 10px;
+      }
+      .header-language {
+        display: flex;
+        justify-content: flex-end;
+      }
       .version {
         display: inline-block;
         margin-bottom: 8px;
@@ -1846,17 +2275,59 @@ function dashboardHtml(webview) {
         background: var(--vscode-button-secondaryBackground);
       }
       button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
+      .language-selector {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        margin-left: 2px;
+        padding: 2px;
+        border: 1px solid var(--vscode-widget-border);
+        border-radius: 8px;
+        background: transparent;
+      }
+      .language-selector button {
+        min-width: 34px;
+        padding: 5px 7px;
+        border-color: transparent;
+        border-radius: 6px;
+        color: var(--vscode-descriptionForeground);
+        background: transparent;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0;
+      }
+      .language-selector button:hover { color: var(--vscode-foreground); background: var(--vscode-toolbar-hoverBackground); }
+      .language-selector button.active {
+        color: var(--vscode-foreground);
+        background: var(--vscode-toolbar-hoverBackground);
+        box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
+      }
       .metrics {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         gap: 14px;
       }
-      .metric-card, .account-card, .notice, .identity {
+      .metric-card, .account-card, .notice, .identity, .plan-strategy {
         border: 1px solid var(--vscode-widget-border);
         border-radius: 14px;
         background: var(--vscode-editorWidget-background);
         box-shadow: 0 8px 28px var(--vscode-widget-shadow);
       }
+      .onboarding {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 18px;
+        align-items: center;
+        padding: 18px;
+        margin-bottom: 16px;
+        border: 1px solid var(--vscode-focusBorder);
+        border-radius: 14px;
+        background: var(--vscode-editorWidget-background);
+        box-shadow: 0 8px 28px var(--vscode-widget-shadow);
+      }
+      .onboarding h2 { margin: 0 0 6px; }
+      .onboarding p { margin: 0; color: var(--vscode-descriptionForeground); line-height: 1.45; }
+      .onboarding-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
       .recommendation {
         display: grid;
         grid-template-columns: auto 1fr auto;
@@ -1899,10 +2370,12 @@ function dashboardHtml(webview) {
         border-radius: 12px;
         display: grid;
         place-items: center;
-        font-size: 20px;
-        font-weight: 700;
-        color: var(--vscode-button-foreground);
-        background: var(--vscode-button-background);
+        border: 1px solid var(--account-border, var(--vscode-focusBorder));
+        color: var(--account-color, var(--vscode-button-foreground));
+        background: var(--account-bg, var(--vscode-button-background));
+        font-size: 17px;
+        font-weight: 800;
+        letter-spacing: 0;
       }
       .identity-copy { display: flex; flex-direction: column; gap: 3px; }
       .plan-pill {
@@ -1913,6 +2386,16 @@ function dashboardHtml(webview) {
         font-size: 12px;
         font-weight: 700;
       }
+      .plan-strategy {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 12px;
+        align-items: center;
+        padding: 14px 18px;
+        margin-bottom: 16px;
+      }
+      .plan-strategy strong, .plan-strategy span { display: block; }
+      .plan-strategy small { justify-self: end; font-weight: 700; }
       .metric-card {
         min-height: 208px;
         padding: 18px;
@@ -1971,7 +2454,7 @@ function dashboardHtml(webview) {
         gap: 12px 22px;
         align-items: center;
       }
-      .account-card.active { border-color: var(--vscode-focusBorder); }
+      .account-card.active { border-color: var(--account-color, var(--vscode-focusBorder)); }
       .account-card.selectable { cursor: pointer; }
       .account-card.selectable:hover {
         border-color: var(--vscode-focusBorder);
@@ -1981,7 +2464,27 @@ function dashboardHtml(webview) {
         outline: 2px solid var(--vscode-focusBorder);
         outline-offset: 2px;
       }
-      .account-title { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+      .account-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+      .account-avatar {
+        flex: 0 0 auto;
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        border-radius: 12px;
+        border: 1px solid var(--account-border);
+        color: var(--account-color);
+        background: var(--account-bg);
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: 0;
+      }
+      .account-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+      .account-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+      .account-title strong { font-size: 14px; }
+      .account-detail, .account-plan { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .account-detail { color: var(--vscode-foreground) !important; opacity: .88; }
+      .account-plan { font-size: 12px; }
       .account-usage { display: flex; gap: 22px; font-variant-numeric: tabular-nums; }
       .account-usage div { min-width: 88px; }
       .account-usage small, .account-usage strong { display: block; }
@@ -2044,6 +2547,8 @@ function dashboardHtml(webview) {
       @media (max-width: 640px) {
         body { padding: 18px; }
         header { flex-direction: column; }
+        .header-controls, .header-language { align-items: flex-start; justify-content: flex-start; }
+        .header-controls { width: 100%; }
         .account-card { grid-template-columns: 1fr; }
         .account-usage, .account-seen, .account-actions { grid-column: 1; }
         .account-actions { justify-content: flex-start; flex-wrap: wrap; }
@@ -2051,6 +2556,8 @@ function dashboardHtml(webview) {
         .metric-chart-wrap { margin: 0 auto; }
         .accounts-heading { align-items: flex-start; flex-direction: column; }
         .recommendation { grid-template-columns: auto 1fr; }
+        .onboarding { grid-template-columns: 1fr; }
+        .onboarding-actions { justify-content: flex-start; }
         .next-reset { grid-column: 1 / -1; text-align: left; }
       }
     </style>
@@ -2063,17 +2570,33 @@ function dashboardHtml(webview) {
           <h1>${escapeHtml(t('dashboardTitle'))}</h1>
           <p class="subtitle">${escapeHtml(stateTitle)}. ${escapeHtml(stateDetail)}</p>
         </div>
-        <div class="actions">
-          <button data-action="refresh">${escapeHtml(t('refresh'))}</button>
-          <button class="secondary" data-action="projectContext">${escapeHtml(t('projectContext'))}</button>
-          <button class="secondary" data-action="accounts">${escapeHtml(t('manageAccounts'))}</button>
-          <button class="secondary" data-action="openCodex">${escapeHtml(t('openCodex'))}</button>
+        <div class="header-controls">
+          <div class="header-language">${languageSelectorHtml()}</div>
+          <div class="actions">
+            <button data-action="refresh">${escapeHtml(t('refresh'))}</button>
+            <button class="secondary" data-action="projectContext">${escapeHtml(t('projectContext'))}</button>
+            <button class="secondary" data-action="accounts">${escapeHtml(t('manageAccounts'))}</button>
+            <button class="secondary" data-action="openCodex">${escapeHtml(t('openCodex'))}</button>
+          </div>
         </div>
       </header>
 
       ${latestError ? `<div class="notice"><strong>${escapeHtml(t('readError'))}</strong>${escapeHtml(latestError.message)}</div>` : ''}
       ${authNotice}
       ${panelSessionNotice}
+
+      ${!latestStats ? `
+      <section class="onboarding">
+        <div>
+          <h2>${escapeHtml(t('onboardingTitle'))}</h2>
+          <p>${escapeHtml(t('onboardingDetail'))}</p>
+        </div>
+        <div class="onboarding-actions">
+          <button data-action="openCodex">${escapeHtml(t('onboardingOpenCodex'))}</button>
+          <button class="secondary" data-action="accounts">${escapeHtml(t('onboardingAccounts'))}</button>
+          <button class="secondary" data-action="projectContext">${escapeHtml(t('onboardingContext'))}</button>
+        </div>
+      </section>` : ''}
 
       <section class="recommendation ${escapeHtml(advice.tone)}">
         <div class="recommendation-icon">${advice.tone === 'good' ? '&#10003;' : '!'}</div>
@@ -2089,7 +2612,7 @@ function dashboardHtml(webview) {
 
       <section class="identity">
         <div class="identity-main">
-          <div class="avatar">C</div>
+          <div class="avatar" style="--account-color: ${escapeHtml(activeVisual.color)}; --account-bg: ${escapeHtml(activeVisual.background)}; --account-border: ${escapeHtml(activeVisual.border)};" aria-hidden="true">${escapeHtml(activeVisual.initials)}</div>
           <div class="identity-copy">
             <strong>${escapeHtml(accountLabel)}</strong>
             <span>${escapeHtml(t('accountUsedByNewChats'))}</span>
@@ -2098,34 +2621,44 @@ function dashboardHtml(webview) {
         <span class="plan-pill">${escapeHtml(t('localPlan', { label: planInfo.label }))} - ${escapeHtml(planInfo.detail)}</span>
       </section>
 
+      <section class="plan-strategy">
+        <div>
+          <strong>${escapeHtml(planStrategy.title)}</strong>
+          <span>${escapeHtml(planStrategy.detail)}</span>
+        </div>
+        <small>${escapeHtml(planStrategy.action)}</small>
+      </section>
+
       <div class="metrics">
-        ${metricCard(
-          t('quotaOf', { window: windowLabel(limits.primary?.window_minutes) }),
-          primaryAvailable == null ? t('pending') : t('availableValue', { value: formatPercent(primaryAvailable) }),
-          primaryAvailable,
-          limits.primary ? t('renewsFull', { time: formatResetFull(limits.primary.resets_at) }) : t('pendingAccountData'),
-          t('shortQuotaHint'),
-          Number(primaryPercent) >= 90 ? 'danger' : Number(primaryPercent) >= 75 ? 'warning' : 'accent'
-        )}
-        ${metricCard(
-          t('quotaOf', { window: windowLabel(limits.secondary?.window_minutes) }),
-          secondaryAvailable == null ? t('pending') : t('availableValue', { value: formatPercent(secondaryAvailable) }),
-          secondaryAvailable,
-          limits.secondary ? t('renewsFull', { time: formatResetFull(limits.secondary.resets_at) }) : t('pendingAccountData'),
-          t('longQuotaHint'),
-          Number(secondaryPercent) >= 90 ? 'danger' : Number(secondaryPercent) >= 75 ? 'warning' : 'accent'
+        ${displayedQuotaWindows.length ? displayedQuotaWindows.map((limit, index) => {
+          const available = availablePercent(limit?.used_percent);
+          return metricCard(
+            quotaWindowTitle(limit, index),
+            available == null ? t('pending') : t('availableValue', { value: formatPercent(available) }),
+            available,
+            limit ? t('renewsFull', { time: formatResetFull(limit.resets_at) }) : t('pendingAccountData'),
+            index === 0 ? t('shortQuotaHint') : t('longQuotaHint'),
+            quotaTone(limit)
+          );
+        }).join('') : metricCard(
+          t('quotaDataPending'),
+          t('pending'),
+          null,
+          t('pendingAccountData'),
+          t('openCodexForAccountData'),
+          'accent'
         )}
       </div>
 
       <h2>${escapeHtml(t('whatDataMeans'))}</h2>
       <div class="explain-grid">
         <div class="explain-card">
-          <strong>${escapeHtml(t('fiveHoursAvailable'))}</strong>
-          ${escapeHtml(t('fiveHoursExplanation'))}
+          <strong>${escapeHtml(t('shortQuotaAvailable'))}</strong>
+          ${escapeHtml(t('shortQuotaExplanation'))}
         </div>
         <div class="explain-card">
-          <strong>${escapeHtml(t('sevenDaysAvailable'))}</strong>
-          ${escapeHtml(t('sevenDaysExplanation'))}
+          <strong>${escapeHtml(t('longQuotaAvailable'))}</strong>
+          ${escapeHtml(t('longQuotaExplanation'))}
         </div>
       </div>
 
@@ -2195,7 +2728,8 @@ function dashboardHtml(webview) {
         if (target.tagName === 'BUTTON') event.stopPropagation();
         vscode.postMessage({
           action: target.dataset.action,
-          profileId: target.dataset.profile || null
+          profileId: target.dataset.profile || null,
+          language: target.dataset.language || null
         });
       });
       document.addEventListener('keydown', event => {
@@ -2222,12 +2756,15 @@ function dashboardSignature() {
     statsTimestamp: latestStats?.timestamp || null,
     statsFallback: Boolean(latestStats?.isSnapshotFallback),
     accountLabel: latestStats?.accountLabel || '',
+    quotaWindows: quotaWindowsFromRateLimits(latestStats?.rateLimits),
     primary: latestStats?.rateLimits?.primary || null,
     secondary: latestStats?.rateLimits?.secondary || null,
     plan: latestStats?.rateLimits?.plan_type || null,
+    planPolicy: currentPlanPolicy,
     authState: latestAuthStatus.state,
     authMessage: latestAuthStatus.message,
     language: languageTag(),
+    languageSetting: currentLanguageSetting(),
     error: latestError?.message || '',
     profiles
   });
@@ -2265,6 +2802,7 @@ async function showDashboard() {
   dashboardPanel.webview.html = dashboardHtml(dashboardPanel.webview);
   lastDashboardSignature = dashboardSignature();
   dashboardPanel.webview.onDidReceiveMessage(async message => {
+    if (message.action === 'setLanguage') await setDashboardLanguage(message.language);
     if (message.action === 'refresh') await refresh(true);
     if (message.action === 'accounts') await manageAccounts();
     if (message.action === 'openCodex') await openCodex();
@@ -2288,17 +2826,7 @@ async function manageAccounts() {
   const account = readCurrentAccount();
   const activeId = account.hasCredentials ? accountProfileId(account) : '';
   const profiles = getAccountProfiles();
-  const accountItems = profiles.map(profile => ({
-    label: `${profile.id === activeId ? '$(check) ' : '$(account) '}${profile.label}`,
-    description: profile.id === activeId
-      ? t('currentAccount')
-      : profile.credentialsStored
-        ? t('savedAccountReadyLong')
-        : t('historyOnlyNoCredential'),
-    detail: `5 h: ${profile.snapshot?.primaryUsed == null ? '--' : `${Math.round(100 - profile.snapshot.primaryUsed)}% ${t('free')}`} - 7 dias: ${profile.snapshot?.secondaryUsed == null ? '--' : `${Math.round(100 - profile.snapshot.secondaryUsed)}% ${t('free')}`}`,
-    action: 'profile',
-    profileId: profile.id
-  }));
+  const accountItems = profiles.map(profile => accountQuickPickItem(profile, activeId));
   const selected = await vscode.window.showQuickPick([
     {
       label: `$(add) ${t('addAccount')}`,
@@ -2377,11 +2905,11 @@ async function showDetails() {
 }
 
 function scheduleRefresh() {
+  const configuredSeconds = Number(vscode.workspace.getConfiguration('codexGestion').get('refreshIntervalSeconds', 30));
+  const seconds = effectiveRefreshIntervalSeconds(configuredSeconds, currentPlanPolicy);
+  if (refreshTimer && scheduledRefreshSeconds === seconds) return;
   if (refreshTimer) clearInterval(refreshTimer);
-  const seconds = Math.max(
-    5,
-    Number(vscode.workspace.getConfiguration('codexGestion').get('refreshIntervalSeconds', 30))
-  );
+  scheduledRefreshSeconds = seconds;
   refreshTimer = setInterval(() => refresh(false), seconds * 1000);
 }
 
@@ -2500,16 +3028,24 @@ module.exports = {
     clearAccountSwitchGuard,
     clearPostSwitchRefreshTimers,
     enforceAccountSwitchGuard,
+    effectiveRefreshIntervalSeconds,
     findCodexExecutable,
     buildInitialProjectContext,
     extractSessionConversationItems,
     formatContextQuota,
     getContextPercent,
+    getProjectIdentitySummary,
+    getRoadmapContextSummary,
+    buildDecisionSignalsSection,
     sanitizeContextExcerpt,
     isPathInside,
     mergeAccountSnapshot,
     parseLatestStats,
     planDisplay,
+    planPolicyFrom,
+    planPolicyText,
+    quotaWindowLabel,
+    quotaWindowsFromRateLimits,
     rateLimitFingerprint,
     resolveAccountTracking,
     schedulePostSwitchStatsRefresh,
@@ -2518,6 +3054,9 @@ module.exports = {
     summarizeAuthFailure,
     statsFromProfileSnapshot,
     accountDisplayLabel,
+    accountIdentityDetail,
+    accountQuickPickItem,
+    accountVisual,
     visibleAccountSnapshot,
     writeAuthPayloadAtomic
   }

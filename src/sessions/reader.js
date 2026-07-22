@@ -74,10 +74,25 @@ function readSessionMeta(filePath) {
   return null;
 }
 
+function stableRateLimitShape(rateLimits) {
+  if (!rateLimits || typeof rateLimits !== 'object') return '';
+  const normalize = value => {
+    if (Array.isArray(value)) return value.map(normalize);
+    if (!value || typeof value !== 'object') return value;
+    return Object.keys(value).sort().reduce((result, key) => {
+      if (key === 'resets_at' || key === 'used_percent') return result;
+      result[key] = normalize(value[key]);
+      return result;
+    }, {});
+  };
+  return JSON.stringify(normalize(rateLimits));
+}
+
 function rateLimitFingerprint(rateLimits) {
   const limitId = rateLimits?.limit_id;
-  if (!limitId) return '';
-  return crypto.createHash('sha256').update(String(limitId)).digest('hex').slice(0, 16);
+  const source = limitId ? String(limitId) : stableRateLimitShape(rateLimits);
+  if (!source) return '';
+  return crypto.createHash('sha256').update(source).digest('hex').slice(0, 16);
 }
 
 function parseLatestStats(filePath, expectedRateLimitFingerprint = '') {

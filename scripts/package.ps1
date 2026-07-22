@@ -12,12 +12,14 @@ try {
   }
 
   npm test
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   if (-not (Test-Path -LiteralPath $dist)) {
     New-Item -ItemType Directory -Path $dist | Out-Null
   }
 
-  npx vsce package --allow-missing-repository --no-rewrite-relative-links --out $dist
+  & $vsceBin package --allow-missing-repository --no-rewrite-relative-links --no-dependencies --out $dist
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 finally {
   Pop-Location

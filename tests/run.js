@@ -93,6 +93,44 @@ assert.strictEqual(merged.plan, 'plus');
 assert.strictEqual(merged.contextUsed, 30);
 assert.strictEqual(merged.rateLimitFingerprint, 'new');
 
+const dynamicLimits = {
+  plan_type: 'pro',
+  quotas: [
+    { name: 'long', used_percent: 20, window_minutes: 10080 },
+    { name: 'short', used_percent: 70, window_minutes: 180 }
+  ]
+};
+const dynamicWindows = __test.quotaWindowsFromRateLimits(dynamicLimits);
+assert.strictEqual(dynamicWindows[0].key, 'short');
+assert.strictEqual(dynamicWindows[1].key, 'long');
+assert.strictEqual(__test.quotaWindowLabel(dynamicWindows[0]), 'short');
+assert.strictEqual(__test.quotaWindowLabel({ window_minutes: 180 }), '3h');
+const dynamicMerged = __test.mergeAccountSnapshot({}, {
+  rateLimits: dynamicLimits,
+  rateLimitFingerprint: __test.rateLimitFingerprint(dynamicLimits)
+});
+assert.strictEqual(dynamicMerged.plan, 'pro');
+assert.strictEqual(dynamicMerged.primaryWindowMinutes, 180);
+assert.strictEqual(dynamicMerged.secondaryWindowMinutes, 10080);
+assert.strictEqual(dynamicMerged.quotaWindows.length, 2);
+const plusPolicy = __test.planPolicyFrom({ rateLimits: { plan_type: 'plus', primary: { used_percent: 96 } } }, null);
+assert.strictEqual(plusPolicy.plan, 'plus');
+assert.strictEqual(plusPolicy.canBuyCredits, true);
+assert.strictEqual(plusPolicy.isLow, true);
+assert.strictEqual(__test.effectiveRefreshIntervalSeconds(30, plusPolicy), 60);
+const freePolicy = __test.planPolicyFrom({ rateLimits: { plan_type: 'free' } }, null);
+assert.strictEqual(freePolicy.shouldSuggestUpgrade, true);
+assert.strictEqual(__test.effectiveRefreshIntervalSeconds(30, freePolicy), 45);
+const workspacePolicy = __test.planPolicyFrom({ rateLimits: { plan_type: 'enterprise' } }, null);
+assert.strictEqual(workspacePolicy.adminManaged, true);
+const pendingPolicy = __test.planPolicyFrom(null, null);
+assert.strictEqual(pendingPolicy.isPending, true);
+assert.strictEqual(__test.effectiveRefreshIntervalSeconds(30, pendingPolicy), 15);
+assert.strictEqual(
+  __test.rateLimitFingerprint(dynamicLimits),
+  __test.rateLimitFingerprint({ ...dynamicLimits, quotas: dynamicLimits.quotas.map(limit => ({ ...limit, used_percent: limit.used_percent + 5 })) })
+);
+
 const fallbackStats = __test.statsFromProfileSnapshot({
   label: 'Cuenta guardada',
   lastSeen: 1234,

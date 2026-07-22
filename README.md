@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.0.5-60a5fa?style=for-the-badge">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.0.6-60a5fa?style=for-the-badge">
   <img alt="License" src="https://img.shields.io/badge/license-source--available-4ec9b0?style=for-the-badge">
   <img alt="Privacy" src="https://img.shields.io/badge/privacy-local_only-111827?style=for-the-badge">
   <img alt="VS Code" src="https://img.shields.io/badge/VS_Code-%5E1.85-007ACC?style=for-the-badge">
@@ -35,12 +35,32 @@ account snapshots, and account switching inside VS Code. It is built for the
 small but very real moment where you want to know: which account am I using,
 how much quota is left, and when does it reset?
 
-### New in 0.0.5
+### Why this exists
 
+Codex can be used from different accounts, surfaces, and plan tiers, and the
+official quota state is easy to lose sight of while you are deep in a coding
+session. Codex Gestion keeps the practical signals close to your editor: local
+quota windows, reset times, the active account, and a small handoff file for
+continuing work cleanly.
+
+### Local-only privacy
+
+> Codex Gestion has no backend. It reads local Codex session/auth files and VS Code
+> SecretStorage, then renders the dashboard inside VS Code. Tokens, prompts,
+> diagnostics, and session contents are not intentionally sent to any remote server.
+
+### New in 0.0.6
+
+- In-panel language selector for Auto, Spanish, and English.
+- First-run onboarding with direct actions for Codex, accounts, and project context.
+- Release preparation script to bump, test, package, and validate VSIX builds safely.
 - Smarter project handoff context for continuing work in another chat or account.
+- Project context now includes detected project identity, Git status, recent commits, ROADMAP-driven next steps, and local decision signals.
 - Optional local Codex session excerpts in `.codex-gestion/PROJECT_CONTEXT.md` through `codexGestion.projectContext.includeSessionExcerpts`.
-- Project context now includes Git status and a clearer next-chat continuation prompt.
+- Project context explains that Codex reads `AGENTS.md` automatically, while `.codex-gestion/PROJECT_CONTEXT.md` should be opened, pasted, or referenced for handoff.
+- Account cards now use local color accents, initials, visible aliases, and secondary email/plan details.
 - Compact status bar now shows available quota plus the real time left to reset.
+- Status tooltip now summarizes each quota with available percent, reset timing, and used percent.
 - Logo PNG now has transparent rounded corners for Marketplace and VS Code views.
 - Reset times no longer show stale `in now` / `dentro de now` text.
 
@@ -49,6 +69,16 @@ how much quota is left, and when does it reset?
 | Dashboard | Status tooltip |
 | --- | --- |
 | <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/readme-dashboard.png" alt="Dashboard preview"> | <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/readme-tooltip.png" alt="Tooltip preview"> |
+
+### Marketplace screenshots
+
+| English dashboard | Spanish dashboard |
+| --- | --- |
+| <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/marketplace-dashboard-en.png" alt="Codex Gestion dashboard in English dark mode"> | <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/marketplace-dashboard-es.png" alt="Panel de Codex Gestion en espanol y modo oscuro"> |
+
+| Focused dashboard capture |
+| --- |
+| <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/marketplace-dashboard-focus.png" alt="Focused Codex Gestion dashboard capture for Marketplace"> |
 
 ### Highlights
 
@@ -72,7 +102,8 @@ It reads:
 - `~/.codex/sessions/**/*.jsonl`
 - `~/.codex/auth.json`
 - VS Code SecretStorage entries created by this extension
-- the current workspace path when creating project context
+- the current workspace path and selected workspace metadata when creating project context
+- local Git status, recent commits, `package.json`, and `ROADMAP.md` when creating project context
 - recent local Codex session excerpts when project context excerpts are enabled
 
 It writes:
@@ -96,7 +127,7 @@ Codex Gestion
 From a local VSIX package:
 
 ```powershell
-code --install-extension .\dist\codex-gestion-0.0.5.vsix --force
+code --install-extension .\dist\codex-gestion-0.0.6.vsix --force
 ```
 
 ### Commands
@@ -158,12 +189,33 @@ uso, ventanas de cuota, cuentas detectadas y cambio de cuenta dentro de VS Code.
 Esta pensada para ese momento concreto en el que quieres saber: que cuenta estoy
 usando, cuanta cuota queda y cuando se renueva?
 
-### Nuevo en 0.0.5
+### Por que existe
 
+Codex puede usarse desde varias cuentas, superficies y tipos de plan, y es facil
+perder de vista el estado real de cuota cuando estas metido en una sesion de
+codigo. Codex Gestion acerca esas senales practicas al editor: ventanas de cuota
+locales, horas de renovacion, cuenta activa y un pequeno archivo de traspaso para
+continuar el trabajo limpiamente.
+
+### Privacidad local visible
+
+> Codex Gestion no tiene backend. Lee archivos locales de sesion/auth de Codex y
+> VS Code SecretStorage, y renderiza el panel dentro de VS Code. No envia
+> intencionadamente tokens, prompts, diagnosticos ni contenido de sesiones a
+> ningun servidor remoto.
+
+### Nuevo en 0.0.6
+
+- Selector de idioma dentro del panel para Auto, espanol e ingles.
+- Onboarding inicial con acciones directas para Codex, cuentas y contexto del proyecto.
+- Script de preparacion de release para subir version, probar, empaquetar y validar VSIX de forma segura.
 - Contexto de traspaso mas inteligente para continuar el trabajo en otro chat o cuenta.
+- El contexto del proyecto ahora incluye identidad detectada del proyecto, estado Git, commits recientes, proximos pasos desde ROADMAP y senales de decisiones locales.
 - Extractos opcionales de sesiones locales de Codex en `.codex-gestion/PROJECT_CONTEXT.md` mediante `codexGestion.projectContext.includeSessionExcerpts`.
-- El contexto del proyecto ahora incluye estado Git y un prompt de continuacion mas claro.
+- El contexto explica que Codex lee `AGENTS.md` automaticamente, mientras `.codex-gestion/PROJECT_CONTEXT.md` debe abrirse, pegarse o referenciarse para traspasos.
+- Las tarjetas de cuenta ahora usan color local, iniciales, alias visible y email/plan como detalle secundario.
 - La barra compacta ahora muestra la cuota disponible y el tiempo real que falta para renovar.
+- El tooltip de estado ahora resume cada cuota con porcentaje disponible, renovacion y porcentaje usado.
 - El PNG del logo ahora tiene esquinas redondeadas transparentes para Marketplace y VS Code.
 - Las renovaciones antiguas ya no muestran textos confusos como `in now` / `dentro de now`.
 
@@ -172,6 +224,16 @@ usando, cuanta cuota queda y cuando se renueva?
 | Panel visual | Tooltip de estado |
 | --- | --- |
 | <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/readme-dashboard.png" alt="Vista previa del panel"> | <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/readme-tooltip.png" alt="Vista previa del tooltip"> |
+
+### Capturas para Marketplace
+
+| Panel en ingles | Panel en espanol |
+| --- | --- |
+| <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/marketplace-dashboard-en.png" alt="Panel de Codex Gestion en ingles y modo oscuro"> | <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/marketplace-dashboard-es.png" alt="Panel de Codex Gestion en espanol y modo oscuro"> |
+
+| Captura enfocada del dashboard |
+| --- |
+| <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/marketplace-dashboard-focus.png" alt="Captura enfocada del dashboard de Codex Gestion para Marketplace"> |
 
 ### Caracteristicas
 
@@ -194,7 +256,8 @@ Lee:
 - `~/.codex/sessions/**/*.jsonl`
 - `~/.codex/auth.json`
 - entradas de VS Code SecretStorage creadas por esta extension
-- la ruta del workspace actual al crear contexto de proyecto
+- la ruta del workspace actual y metadatos seleccionados del workspace al crear contexto de proyecto
+- estado Git local, commits recientes, `package.json` y `ROADMAP.md` al crear contexto de proyecto
 - extractos recientes de sesiones locales de Codex si los extractos de contexto estan activados
 
 Escribe:
@@ -218,7 +281,7 @@ Codex Gestion
 Desde un paquete VSIX local:
 
 ```powershell
-code --install-extension .\dist\codex-gestion-0.0.5.vsix --force
+code --install-extension .\dist\codex-gestion-0.0.6.vsix --force
 ```
 
 ### Comandos

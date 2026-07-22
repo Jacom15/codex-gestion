@@ -42,6 +42,7 @@ const vscodeMock = {
   },
   StatusBarAlignment: { Right: 2 },
   ViewColumn: { Beside: 2 },
+  ConfigurationTarget: { Global: true },
   Uri: {
     file(filePath) {
       return { fsPath: filePath, toString: () => filePath };
@@ -66,6 +67,9 @@ const vscodeMock = {
         get(name, fallback) {
           if (name === 'language') return languageSetting;
           return fallback;
+        },
+        async update(name, value) {
+          if (name === 'language') languageSetting = value;
         }
       };
     },
@@ -165,13 +169,22 @@ const context = {
   assert.strictEqual(commands.has('codexGestion.switchAccount'), true);
   assert.strictEqual(commands.has('codexGestion.manageAccounts'), true);
   assert.strictEqual(commands.has('codexGestion.openProjectContext'), true);
+
+  const roadmapSummary = extension.__test.getRoadmapContextSummary(process.cwd(), 4);
+  assert.strictEqual(roadmapSummary.exists, true);
+  assert.ok(roadmapSummary.items.some(item => /Contexto del proyecto mas inteligente/.test(item)) || roadmapSummary.items.length > 0);
+  const projectIdentity = extension.__test.getProjectIdentitySummary(process.cwd());
+  assert.match(projectIdentity.name, /Codex Gestion|codex-gestion/);
+  const visual = extension.__test.accountVisual({ id: 'profile-1', label: 'Trabajo', email: 'work@example.com' });
+  assert.match(visual.color, /^#/);
+  assert.strictEqual(visual.initials, 'TR');
+  assert.match(extension.__test.accountIdentityDetail({ label: 'Trabajo', email: 'work@example.com' }), /work@example.com/);
   assert.strictEqual(statusItem.shown, true);
   assert.notStrictEqual(statusItem.text, '');
-  assert.match(statusItem.tooltip.value, /Cuota 5 h/);
-  assert.match(statusItem.tooltip.value, /Cuota 7 dias/);
-  assert.match(statusItem.tooltip.value, /(% libre[\s\S]*% usado|Sin lectura visual todavia)/);
-  assert.match(statusItem.tooltip.value, /(<img src="data:image\/svg\+xml;base64,|Sin lectura visual todavia)/);
-  assert.match(statusItem.tooltip.value, /Cuota 5 h[\s\S]*---[\s\S]*Cuota 7 dias[\s\S]*---[\s\S]*Actualizado/);
+  assert.match(statusItem.tooltip.value, /Cuota de |Cuotas pendientes|Sin lectura visual todavia/);
+  assert.match(statusItem.tooltip.value, /(% libre[\s\S]*% usado|Sin lectura visual todavia|Cuotas pendientes)/);
+  assert.match(statusItem.tooltip.value, /(<img src="data:image\/svg\+xml;base64,|Sin lectura visual todavia|Cuotas pendientes)/);
+  assert.match(statusItem.tooltip.value, /(Cuota de|Cuotas pendientes)[\s\S]*---[\s\S]*Actualizado/);
   assert.match(statusItem.tooltip.value, /command:codexGestion\.refresh/);
   assert.match(statusItem.tooltip.value, /command:codexGestion\.showDashboard/);
   assert.doesNotMatch(statusItem.tooltip.value, /command:codexGestion\.switchAccount/);
@@ -180,8 +193,9 @@ const context = {
 
   storage.set('accountProfiles', [{
     id: 'historical-profile',
-    label: 'Cuenta historica',
+    label: 'Trabajo',
     mode: 'chatgpt',
+    email: 'work@example.com',
     lastSeen: Date.now(),
     credentialsStored: true,
     snapshot: { primaryUsed: 20, secondaryUsed: 30, plan: 'plus' }
@@ -189,6 +203,11 @@ const context = {
   await commands.get('codexGestion.showDashboard')();
   assert.ok(dashboardPanel);
   assert.match(dashboardPanel.webview.html, /Panel de uso de Codex/);
+  assert.doesNotMatch(dashboardPanel.webview.html, /Empieza con Codex Gestion/);
+  assert.match(dashboardPanel.webview.html, /aria-label="Idioma"/);
+  assert.match(dashboardPanel.webview.html, /data-action="setLanguage" data-language="auto" aria-pressed="true"/);
+  assert.match(dashboardPanel.webview.html, /data-action="setLanguage" data-language="es"/);
+  assert.match(dashboardPanel.webview.html, /data-action="setLanguage" data-language="en"/);
   assert.match(dashboardPanel.webview.html, /Gestion de cuentas/);
   assert.match(dashboardPanel.webview.html, /Contexto proyecto/);
   assert.match(dashboardPanel.webview.html, /chart\.umd\.min\.js/);
@@ -197,6 +216,10 @@ const context = {
   assert.match(dashboardPanel.webview.html, /Cambiar cuenta/);
   assert.match(dashboardPanel.webview.html, /Agregar cuenta/);
   assert.match(dashboardPanel.webview.html, /data-action="accountCard"/);
+  assert.match(dashboardPanel.webview.html, /class="account-avatar"/);
+  assert.match(dashboardPanel.webview.html, /--account-color:/);
+  assert.match(dashboardPanel.webview.html, /Trabajo/);
+  assert.match(dashboardPanel.webview.html, /work@example.com/);
   assert.match(dashboardPanel.webview.html, />Renombrar<\/button>/);
   assert.match(dashboardPanel.webview.html, />Eliminar<\/button>/);
   assert.doesNotMatch(dashboardPanel.webview.html, /Editar alias/);
@@ -205,12 +228,21 @@ const context = {
   languageSetting = 'en';
   await commands.get('codexGestion.showDashboard')();
   assert.match(dashboardPanel.webview.html, /Codex usage panel/);
+  assert.doesNotMatch(dashboardPanel.webview.html, /Start with Codex Gestion/);
+  assert.match(dashboardPanel.webview.html, /aria-label="Language"/);
+  assert.match(dashboardPanel.webview.html, /data-action="setLanguage" data-language="en" aria-pressed="true"/);
   assert.match(dashboardPanel.webview.html, /Account management/);
   assert.match(dashboardPanel.webview.html, /Switch account/);
   assert.match(dashboardPanel.webview.html, /Add account/);
   assert.match(dashboardPanel.webview.html, />Rename<\/button>/);
   assert.match(dashboardPanel.webview.html, />Delete<\/button>/);
   assert.doesNotMatch(dashboardPanel.webview.html, /Panel de uso de Codex/);
+
+  await dashboardMessageHandler({ action: 'setLanguage', language: 'es' });
+  assert.strictEqual(languageSetting, 'es');
+  assert.match(dashboardPanel.webview.html, /Panel de uso de Codex/);
+  assert.match(dashboardPanel.webview.html, /data-action="setLanguage" data-language="es" aria-pressed="true"/);
+  assert.doesNotMatch(dashboardPanel.webview.html, /Codex usage panel/);
 
   extension.deactivate();
   for (const item of context.subscriptions) {
