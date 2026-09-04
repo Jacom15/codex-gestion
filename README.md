@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.0.1-60a5fa?style=for-the-badge">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.0.2-60a5fa?style=for-the-badge">
   <img alt="License" src="https://img.shields.io/badge/license-source--available-4ec9b0?style=for-the-badge">
   <img alt="Privacy" src="https://img.shields.io/badge/privacy-local_only-111827?style=for-the-badge">
   <img alt="VS Code" src="https://img.shields.io/badge/VS_Code-%5E1.85-007ACC?style=for-the-badge">
@@ -98,6 +98,11 @@ The screenshots are generated from the same product surface the extension uses: 
 | Handoff | Maintains a local project context file at `.codex-gestion/PROJECT_CONTEXT.md`, with optional sanitized session excerpts for account/chat handoff. |
 | Diagnostics | Generates sanitized troubleshooting output without tokens or full chat contents. |
 
+### Fixed in 1.0.2
+
+- Quota percentages now preserve a real `1% free` reading instead of forcing it to zero.
+- Fractional near-empty readings can still round down to `0% free` when the remaining percentage is below display precision.
+
 ### Fixed in 1.0.1
 
 - Status-bar tooltip actions are clickable again: Overview opens the panel and Refresh reads local usage immediately.
@@ -152,7 +157,7 @@ Codex Gestion
 From a local VSIX package:
 
 ```powershell
-code --install-extension .\dist\codex-gestion-1.0.1.vsix --force
+code --install-extension .\dist\codex-gestion-1.0.2.vsix --force
 ```
 
 ### Commands
@@ -277,6 +282,11 @@ continuar el trabajo limpiamente.
 | Traspaso | Mantiene un archivo local de contexto en `.codex-gestion/PROJECT_CONTEXT.md`, con extractos saneados opcionales para cambiar de cuenta o chat. |
 | Diagnostico | Genera informacion de ayuda saneada, sin tokens ni contenido completo de chats. |
 
+### Corregido en 1.0.2
+
+- Los porcentajes de cuota conservan una lectura real de `1% libre` en vez de forzarla a cero.
+- Las lecturas fraccionarias casi vacias pueden redondear a `0% libre` cuando el porcentaje restante queda por debajo de la precision visible.
+
 ### Corregido en 1.0.1
 
 - Las acciones del tooltip de la barra de estado vuelven a ser clicables: Resumen abre el panel y Actualizar lee el uso local al momento.
@@ -330,7 +340,7 @@ Codex Gestion
 Desde un paquete VSIX local:
 
 ```powershell
-code --install-extension .\dist\codex-gestion-1.0.1.vsix --force
+code --install-extension .\dist\codex-gestion-1.0.2.vsix --force
 ```
 
 ### Comandos
@@ -378,6 +388,7 @@ Codex Gestion es source-available. Puedes instalar y usar la extension oficial,
 y revisar el codigo por transparencia, pero no esta permitido copiar, modificar,
 redistribuir, reempaquetar ni publicar extensiones derivadas sin permiso escrito.
 Consulta `LICENSE`.
+
 
 
 

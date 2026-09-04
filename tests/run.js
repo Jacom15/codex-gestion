@@ -16,6 +16,9 @@ const { __test } = require('../extension');
 Module._load = originalLoad;
 
 assert.strictEqual(__test.availablePercent(23), 77);
+assert.strictEqual(__test.availablePercent(99), 1);
+assert.strictEqual(__test.availablePercent(99.6), 0.4000000000000057);
+assert.strictEqual(__test.availablePercent(100), 0);
 assert.strictEqual(__test.availablePercent(150), 0);
 assert.strictEqual(__test.availablePercent(null), null);
 assert.strictEqual(__test.availablePercent(undefined), null);

@@ -37,7 +37,9 @@ function clampPercent(value) {
 
 function availablePercent(usedPercent) {
   const number = finiteNumber(usedPercent);
-  return number === null ? null : 100 - clampPercent(number);
+  if (number === null) return null;
+  const used = clampPercent(number);
+  return 100 - used;
 }
 
 function formatReset(epochSeconds) {

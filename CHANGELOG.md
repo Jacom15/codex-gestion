@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.2 - 2026-09-04
+
+- Fixed quota percentage display so a real `1% free` remains visible, while fractional exhausted readings can round down to `0% free`.
+
 ## 1.0.1 - 2026-09-04
 
 - Fixed status-bar tooltip actions so Overview and Refresh are clickable again.

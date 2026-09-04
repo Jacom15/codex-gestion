@@ -1517,7 +1517,7 @@
               <h2>${escapeHtml(t('marketplaceTitle'))}</h2>
               <p>${escapeHtml(t('marketplaceSubtitle'))}</p>
               <div class="marketplace-badges">
-                <span class="marketplace-badge">v1.0.1</span>
+                <span class="marketplace-badge">v1.0.2</span>
                 <span class="marketplace-badge">VS Code ^1.85</span>
                 <span class="marketplace-badge">local only</span>
                 <span class="marketplace-badge">English / Espanol</span>
@@ -1624,7 +1624,7 @@
                 <strong>${escapeHtml(currentAccount().email)}</strong>
                 <span>${escapeHtml(t('quotaPendingReason'))}</span>
               </div>
-              <span class="status-version">v1.0.1</span>
+              <span class="status-version">v1.0.2</span>
             </div>
             <div class="tooltip-actions">
               <button data-view="overview">${escapeHtml(t('overview'))}</button>
@@ -1651,7 +1651,7 @@
                 <strong>${escapeHtml(currentAccount().email)}</strong>
                 <span>${escapeHtml(t('localPlan'))} ${escapeHtml(currentAccount().plan)} · ${escapeHtml(data.session === 'ok' ? t('validated') : data.session === 'invalid' ? t('needsLogin') : t('pending'))}</span>
               </div>
-              <span class="status-version">v1.0.1</span>
+              <span class="status-version">v1.0.2</span>
             </div>
             <div class="tooltip-actions">
               <button data-view="overview">${escapeHtml(t('overview'))}</button>
@@ -1772,7 +1772,7 @@
           <nav class="rail" aria-label="Preview navigation">
             <div class="rail-brand">
               <strong>Codex Gestion</strong>
-              <span>v1.0.1</span>
+              <span>v1.0.2</span>
             </div>
             ${navButton('overview', t('overview'))}
             ${navButton('marketplace', t('marketplaceView'))}
@@ -1883,7 +1883,7 @@
             <div class="context-card">
               <h2>${escapeHtml(t('diagnosticsTitle'))}</h2>
               <pre class="diagnostics-output">Codex Gestion diagnostics
-Extension version: 1.0.1-preview
+Extension version: 1.0.2-preview
 Preview scenario: ${state.scenario}
 Active account: ${account.label}
 Quota windows detected: ${data.quotas}
@@ -1905,7 +1905,7 @@ No tokens, account identifiers, session contents, or file paths are included.</p
       state.diagnosticsCount += 1;
       const data = scenarios[state.scenario];
       openModal(t('diagnosticsTitle'), `<pre class="diagnostics-output">Codex Gestion diagnostics
-Extension version: 1.0.1-preview
+Extension version: 1.0.2-preview
 Preview scenario: ${state.scenario}
 Active account: ${currentAccount().label}
 Codex login status: ${data.session}
@@ -2100,6 +2100,7 @@ No tokens, account identifiers, session contents, or file paths are included.</p
   </script>
 </body>
 </html>
+
 
 
 

@@ -18,7 +18,11 @@ try {
     New-Item -ItemType Directory -Path $dist | Out-Null
   }
 
-  & $vsceBin package --allow-missing-repository --no-rewrite-relative-links --no-dependencies --out $dist
+  & $vsceBin package `
+    --baseContentUrl "https://github.com/Jacom15/codex-gestion/blob/main" `
+    --baseImagesUrl "https://raw.githubusercontent.com/Jacom15/codex-gestion/main" `
+    --no-dependencies `
+    --out $dist
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 finally {

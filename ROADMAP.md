@@ -56,8 +56,9 @@ Checklist para ir mejorando Codex Gestion sin perder el hilo. Marca cada punto c
 
 ## Release actual
 
-- [ ] Publicar `1.0.1` en Marketplace.
+- [ ] Publicar `1.0.2` en Marketplace.
 - [ ] Hacer push a GitHub.
 - [ ] Confirmar que VS Code detecta la actualizacion.
 - [x] Comprobar que el logo ya no muestra esquinas blancas.
+
 

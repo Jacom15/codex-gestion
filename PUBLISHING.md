@@ -76,7 +76,7 @@ npm run package
 Inspect the VSIX contents:
 
 ```powershell
-tar -tf .\dist\codex-gestion-1.0.1.vsix
+tar -tf .\dist\codex-gestion-1.0.2.vsix
 ```
 
 Confirm the package includes:
@@ -96,19 +96,20 @@ Confirm it does not include:
 - credentials or local auth files
 ## 4. README images
 
-The README uses images from `media/`. For local VSIX builds, the package script
-uses `--no-rewrite-relative-links` so the package can be generated without a
-public repository.
+The README uses images from `media/`. Marketplace does not reliably render those
+relative paths by itself, so the package script rewrites them to GitHub URLs:
 
-For Marketplace publishing, configure one of these before running `vsce publish`:
+- content links: `https://github.com/Jacom15/codex-gestion/blob/main`
+- image links: `https://raw.githubusercontent.com/Jacom15/codex-gestion/main`
 
-- add a real `repository.url` in `package.json`, preferably a GitHub or GitLab repo
-- or publish with `--baseContentUrl` and `--baseImagesUrl`
+Before publishing to Marketplace, push the updated `media/*.png` files to
+GitHub. If GitHub still has old screenshots, Marketplace will show old or broken
+images even when the VSIX contains the right files.
 
-Example once the repo is public:
+If you publish manually, use the same base URLs:
 
 ```powershell
-npx vsce publish --baseContentUrl https://raw.githubusercontent.com/USER/REPO/main --baseImagesUrl https://raw.githubusercontent.com/USER/REPO/main
+npx vsce publish --baseContentUrl https://github.com/Jacom15/codex-gestion/blob/main --baseImagesUrl https://raw.githubusercontent.com/Jacom15/codex-gestion/main
 ```
 
 ## 5. Publish
@@ -146,6 +147,7 @@ Common options:
 - Stripe Payment Link
 
 If the repository is on GitHub, configure `.github/FUNDING.yml` too.
+
 
 
 

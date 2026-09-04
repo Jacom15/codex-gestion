@@ -2,7 +2,7 @@
   "name": "codex-gestion",
   "displayName": "Codex Gestion",
   "description": "%extension.description%",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "jacom15",
   "icon": "media/codex-gestion-logo.png",
   "license": "SEE LICENSE IN LICENSE",
@@ -102,7 +102,7 @@
     "preview": "node scripts/preview.js",
     "install:local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install.ps1",
     "test": "node tests/run.js && node tests/smoke.js",
-    "publish:marketplace": "vsce publish",
+    "publish:marketplace": "vsce publish --baseContentUrl https://github.com/Jacom15/codex-gestion/blob/main --baseImagesUrl https://raw.githubusercontent.com/Jacom15/codex-gestion/main",
     "release:prepare": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1"
   },
   "devDependencies": {

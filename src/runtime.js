@@ -1065,7 +1065,7 @@ function buildTooltip(stats) {
 function tooltipQuotaView(label, limit) {
   const used = finiteNumber(limit?.used_percent);
   const usedPercent = used === null ? null : clampPercent(used);
-  const available = usedPercent === null ? null : 100 - usedPercent;
+  const available = usedPercent === null ? null : availablePercent(usedPercent);
   const resetMoment = limit ? formatResetMoment(limit.resets_at) : t('noData');
 
   if (usedPercent === null || available === null) {
@@ -1075,7 +1075,7 @@ function tooltipQuotaView(label, limit) {
   return {
     label,
     resetLabel: resetMoment,
-    used: Math.round(clampPercent(usedPercent)),
+    used: Math.max(0, 100 - Math.round(available)),
     available: Math.max(0, Math.round(available))
   };
 }
@@ -1173,7 +1173,7 @@ function tooltipQuotaBar(usedPercent, availablePercentValue) {
   }
 
   const used = Math.round(clampPercent(usedPercent));
-  const available = Math.max(0, 100 - used);
+  const available = Math.max(0, Math.round(availablePercent(used)));
   const totalSegments = 16;
   const availableSegments = Math.max(0, Math.min(totalSegments, Math.round((available / 100) * totalSegments)));
   const usedSegments = totalSegments - availableSegments;

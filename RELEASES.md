@@ -31,7 +31,7 @@ Esto hace automíticamente:
 El resultado esperado será:
 
 ```text
-dist\codex-gestion-1.0.1.vsix
+dist\codex-gestion-1.0.2.vsix
 ```
 
 ## 3. Probar en local
@@ -39,7 +39,7 @@ dist\codex-gestion-1.0.1.vsix
 Instala la versión generada:
 
 ```powershell
-code --install-extension .\dist\codex-gestion-1.0.1.vsix --force
+code --install-extension .\dist\codex-gestion-1.0.2.vsix --force
 ```
 
 Reinicia o recarga VS Code si no ves el cambio inmediatamente.
@@ -67,7 +67,7 @@ Cuando localmente se vea bien:
 5. Sube el archivo:
 
 ```text
-dist\codex-gestion-1.0.1.vsix
+dist\codex-gestion-1.0.2.vsix
 ```
 
 Espera a que pase de `Verifying` a publicado.
@@ -104,7 +104,7 @@ npm run release:prepare -- -Version <version> -SkipPackage
 ### No aparece la nueva versión en VS Code
 
 ```powershell
-code --install-extension .\dist\codex-gestion-1.0.1.vsix --force
+code --install-extension .\dist\codex-gestion-1.0.2.vsix --force
 ```
 
 Luego recarga VS Code.
@@ -144,6 +144,7 @@ Arregla el fallo y vuelve a preparar release.
 - [ ] Panel probado en VS Code.
 - [ ] Marketplace actualizado.
 - [ ] Git commit y push hechos.
+
 
 
 

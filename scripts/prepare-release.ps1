@@ -111,7 +111,12 @@ try {
     } else {
       Get-ChildItem -LiteralPath $dist -Filter '*.vsix' -File | Remove-Item -Force
     }
-    Invoke-Checked $vsceBin @('package', '--allow-missing-repository', '--no-rewrite-relative-links', '--out', $dist)
+    Invoke-Checked $vsceBin @(
+      'package',
+      '--baseContentUrl', 'https://github.com/Jacom15/codex-gestion/blob/main',
+      '--baseImagesUrl', 'https://raw.githubusercontent.com/Jacom15/codex-gestion/main',
+      '--out', $dist
+    )
     $vsix = Join-Path $dist "codex-gestion-$Version.vsix"
     if (-not (Test-Path -LiteralPath $vsix)) {
       throw "Expected VSIX was not created: $vsix"
