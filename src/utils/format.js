@@ -93,11 +93,9 @@ function formatResetFull(epochSeconds) {
 function windowLabel(minutes) {
   const value = finiteNumber(minutes);
   if (value === null) return 'limite';
-  if (value === 300) return '5h';
-  if (value === 10080) return '7d';
-  if (value % 1440 === 0) return `${value / 1440}d`;
-  if (value % 60 === 0) return `${value / 60}h`;
-  return `${value}m`;
+  if (value % 1440 === 0) return `${value / 1440} d`;
+  if (value % 60 === 0) return `${value / 60} h`;
+  return `${value} min`;
 }
 
 function getContextPercent(stats) {

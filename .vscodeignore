@@ -6,10 +6,12 @@
 .codex-gestion/**
 dist/**
 node_modules/**
+preview/**
 scripts/**
 tests/**
 debug.log
 *.log
+*.mp4
 *.vsix
 package-lock.json
 media/*.svg

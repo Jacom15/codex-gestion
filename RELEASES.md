@@ -8,13 +8,13 @@ Usa siempre una versión nueva si la anterior ya se subió al Marketplace.
 
 Ejemplos:
 
-- Si Marketplace tiene `0.0.6`, la siguiente será `0.0.7`.
+- Si Marketplace ya tiene una version publicada, prepara la siguiente version de forma explicita.
 - Si solo estós probando localmente y no has publicado, puedes regenerar la misma versión.
 
 ## 2. Preparar release completo
 
 ```powershell
-npm run release:prepare -- -Version 0.0.7 -Notes "Mejora del selector de idioma", "Tooltip de cuotas mas claro"
+npm run release:prepare -- -Version <version> -Notes "Mejora del selector de idioma", "Tooltip de cuotas mas claro"
 ```
 
 Esto hace automíticamente:
@@ -31,7 +31,7 @@ Esto hace automíticamente:
 El resultado esperado será:
 
 ```text
-dist\codex-gestion-0.0.7.vsix
+dist\codex-gestion-1.0.1.vsix
 ```
 
 ## 3. Probar en local
@@ -39,7 +39,7 @@ dist\codex-gestion-0.0.7.vsix
 Instala la versión generada:
 
 ```powershell
-code --install-extension .\dist\codex-gestion-0.0.7.vsix --force
+code --install-extension .\dist\codex-gestion-1.0.1.vsix --force
 ```
 
 Reinicia o recarga VS Code si no ves el cambio inmediatamente.
@@ -53,7 +53,7 @@ code --list-extensions --show-versions | findstr codex
 Debe salir algo como:
 
 ```text
-jacom15.codex-gestion@0.0.7
+jacom15.codex-gestion@<version>
 ```
 
 ## 4. Subir al Marketplace
@@ -67,7 +67,7 @@ Cuando localmente se vea bien:
 5. Sube el archivo:
 
 ```text
-dist\codex-gestion-0.0.7.vsix
+dist\codex-gestion-1.0.1.vsix
 ```
 
 Espera a que pase de `Verifying` a publicado.
@@ -79,7 +79,7 @@ Cuando el Marketplace está bien o quieras guardar el estado:
 ```powershell
 git status
 git add .
-git commit -m "Release 0.0.7"
+git commit -m "Release <version>"
 git push
 ```
 
@@ -88,7 +88,7 @@ git push
 Solo para pruebas locales o si todavía no la has publicado:
 
 ```powershell
-npm run release:prepare -- -Version 0.0.7
+npm run release:prepare -- -Version <version>
 ```
 
 ## 7. Probar sin generar VSIX
@@ -96,7 +96,7 @@ npm run release:prepare -- -Version 0.0.7
 útil para validar bump, changelog y tests sin empaquetar:
 
 ```powershell
-npm run release:prepare -- -Version 0.0.7 -SkipPackage
+npm run release:prepare -- -Version <version> -SkipPackage
 ```
 
 ## 8. Si algo falla
@@ -104,7 +104,7 @@ npm run release:prepare -- -Version 0.0.7 -SkipPackage
 ### No aparece la nueva versión en VS Code
 
 ```powershell
-code --install-extension .\dist\codex-gestion-0.0.7.vsix --force
+code --install-extension .\dist\codex-gestion-1.0.1.vsix --force
 ```
 
 Luego recarga VS Code.
@@ -122,7 +122,7 @@ node -e "console.log(require('./package.json').version)"
 Ejecuta de nuevo:
 
 ```powershell
-npm run release:prepare -- -Version 0.0.7
+npm run release:prepare -- -Version <version>
 ```
 
 ### Tests fallan
@@ -144,3 +144,9 @@ Arregla el fallo y vuelve a preparar release.
 - [ ] Panel probado en VS Code.
 - [ ] Marketplace actualizado.
 - [ ] Git commit y push hechos.
+
+
+
+
+
+

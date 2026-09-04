@@ -11,7 +11,7 @@
   <rect x="70" y="150" width="980" height="70" rx="14" fill="#222" stroke="#3a3a3a"/>
   <circle cx="106" cy="185" r="20" fill="#4ec9b0"/><text x="106" y="192" text-anchor="middle" font-family="Inter, Segoe UI, Arial" font-size="20" font-weight="900" fill="#111">✓</text>
   <text x="142" y="179" font-family="Inter, Segoe UI, Arial" font-size="16" font-weight="800" fill="#f3f4f6">Todo razonable</text>
-  <text x="142" y="201" font-family="Inter, Segoe UI, Arial" font-size="13" fill="#9ca3af">Puedes seguir trabajando; vigila la cuota semanal si vas a abrir sesiones largas.</text>
+  <text x="142" y="201" font-family="Inter, Segoe UI, Arial" font-size="13" fill="#9ca3af">Puedes seguir trabajando; vigila la cuota larga si vas a abrir sesiones largas.</text>
   <text x="906" y="179" text-anchor="end" font-family="Inter, Segoe UI, Arial" font-size="12" fill="#9ca3af">Proxima renovacion</text>
   <text x="906" y="201" text-anchor="end" font-family="Inter, Segoe UI, Arial" font-size="18" font-weight="800" fill="#f3f4f6">01:06 PM</text>
 
@@ -22,7 +22,7 @@
     <circle cx="90" cy="95" r="40" fill="#171717" stroke="#333"/>
     <text x="90" y="98" text-anchor="middle" font-family="Inter, Segoe UI, Arial" font-size="26" font-weight="850" fill="#f3f4f6">58%</text>
     <text x="90" y="120" text-anchor="middle" font-family="Inter, Segoe UI, Arial" font-size="10" font-weight="800" fill="#9ca3af">LIBRE</text>
-    <text x="185" y="66" font-family="Inter, Segoe UI, Arial" font-size="14" font-weight="800" fill="#cbd5e1">Cuota de 5h</text>
+    <text x="185" y="66" font-family="Inter, Segoe UI, Arial" font-size="14" font-weight="800" fill="#cbd5e1">Cuota corta</text>
     <text x="185" y="102" font-family="Inter, Segoe UI, Arial" font-size="27" font-weight="850" fill="#f8fafc">58% disponible</text>
     <text x="185" y="137" font-family="Inter, Segoe UI, Arial" font-size="13" fill="#cbd5e1">Se renueva hoy a las 01:06 PM</text>
   </g>
@@ -33,7 +33,7 @@
     <circle cx="90" cy="95" r="40" fill="#171717" stroke="#333"/>
     <text x="90" y="98" text-anchor="middle" font-family="Inter, Segoe UI, Arial" font-size="26" font-weight="850" fill="#f3f4f6">78%</text>
     <text x="90" y="120" text-anchor="middle" font-family="Inter, Segoe UI, Arial" font-size="10" font-weight="800" fill="#9ca3af">LIBRE</text>
-    <text x="185" y="66" font-family="Inter, Segoe UI, Arial" font-size="14" font-weight="800" fill="#cbd5e1">Cuota de 7 dias</text>
+    <text x="185" y="66" font-family="Inter, Segoe UI, Arial" font-size="14" font-weight="800" fill="#cbd5e1">Cuota larga</text>
     <text x="185" y="102" font-family="Inter, Segoe UI, Arial" font-size="27" font-weight="850" fill="#f8fafc">78% disponible</text>
     <text x="185" y="137" font-family="Inter, Segoe UI, Arial" font-size="13" fill="#cbd5e1">Uso largo plazo de la cuenta activa</text>
   </g>

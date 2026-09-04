@@ -76,7 +76,12 @@ let outputChannel = null;
 let latestError = null;
 let dashboardPanel = null;
 let lastDashboardSignature = '';
+let lastDashboardShellSignature = '';
+let dashboardView = 'overview';
 const AUTO_SWITCH_RELOAD_DELAY_MS = 2500;
+const ACCOUNT_SWITCH_ATTRIBUTION_SLOP_MS = 5000;
+const PENDING_QUOTA_FAST_REFRESH_MS = 2 * 60 * 1000;
+const PENDING_QUOTA_REFRESH_SECONDS = 2;
 let lastRefreshDurationMs = 0;
 let lastRefreshAt = 0;
 let lastKnownAccount = null;
@@ -84,7 +89,6 @@ let authUnavailableSince = 0;
 let activeSwitchGuard = null;
 let scheduledRefreshSeconds = 0;
 const credentialHashes = new Map();
-
 let latestAuthStatus = {
   state: 'unknown',
   checkedAt: 0,
@@ -403,6 +407,11 @@ function statsCutoffForAccount(accountSince, expectedRateLimitFingerprint) {
   return expectedRateLimitFingerprint ? 0 : accountSince;
 }
 
+function hasQuotaReadings(stats) {
+  return quotaWindowsFromRateLimits(stats?.rateLimits)
+    .some(limit => finiteNumber(limit.used_percent) !== null);
+}
+
 async function getAccountState() {
   const account = readCurrentAccount();
   const accountKey = account.hasCredentials ? accountProfileId(account) : '';
@@ -445,23 +454,88 @@ function updateAccountProfiles(mutator) {
   return accountProfileWrite;
 }
 
-function mergeAccountSnapshot(existingSnapshot, stats) {
+function isAccountScopedRateLimits(rateLimits) {
+  const limitId = String(rateLimits?.limit_id || '').trim().toLowerCase();
+  return Boolean(rateLimits?.account_id || (
+    limitId &&
+    !['codex', 'default', 'global'].includes(limitId)
+  ));
+}
+
+function isGenericRateLimitSnapshot(snapshot) {
+  if (!snapshot) return false;
+  return !snapshot.rateLimitFingerprint && !snapshot.quotaSource && snapshotQuotaWindows(snapshot).length > 0;
+}
+
+function stripQuotaSnapshot(snapshot) {
+  return {
+    ...(snapshot || {}),
+    quotaWindows: [],
+    primaryUsed: null,
+    secondaryUsed: null,
+    primaryResetsAt: null,
+    secondaryResetsAt: null,
+    primaryWindowMinutes: null,
+    secondaryWindowMinutes: null,
+    rateLimitFingerprint: ''
+  };
+}
+
+function quotaSnapshotSignature(snapshot) {
+  if (!isGenericRateLimitSnapshot(snapshot)) return '';
+  return JSON.stringify({
+    quotaWindows: snapshotQuotaWindows(snapshot).map(limit => ({
+      key: limit.key || '',
+      used_percent: finiteNumber(limit.used_percent),
+      resets_at: limit.resets_at || null,
+      window_minutes: finiteNumber(limit.window_minutes)
+    })),
+    primaryUsed: finiteNumber(snapshot.primaryUsed),
+    secondaryUsed: finiteNumber(snapshot.secondaryUsed),
+    primaryResetsAt: snapshot.primaryResetsAt || null,
+    secondaryResetsAt: snapshot.secondaryResetsAt || null
+  });
+}
+
+function scrubDuplicatedGenericQuotaSnapshots(profiles, activeProfileId = '') {
+  const counts = new Map();
+  for (const profile of profiles || []) {
+    const signature = quotaSnapshotSignature(profile?.snapshot);
+    if (signature) counts.set(signature, (counts.get(signature) || 0) + 1);
+  }
+  return (profiles || []).map(profile => {
+    const signature = quotaSnapshotSignature(profile?.snapshot);
+    if (!signature || counts.get(signature) < 2 || profile.id === activeProfileId) return profile;
+    return { ...profile, snapshot: stripQuotaSnapshot(profile.snapshot) };
+  });
+}
+
+function mergeAccountSnapshot(existingSnapshot, stats, options = {}) {
   const existing = existingSnapshot || {};
   if (!stats) return existing;
-  const quotaWindows = quotaWindowsFromRateLimits(stats.rateLimits);
+  const incomingQuotaWindows = quotaWindowsFromRateLimits(stats.rateLimits);
+  const hasIncomingQuotas = incomingQuotaWindows.some(limit => finiteNumber(limit.used_percent) !== null);
+  const accountScopedQuotas = isAccountScopedRateLimits(stats.rateLimits);
+  const canUseIncomingQuotas = options.includeGenericQuotas || accountScopedQuotas;
+  const quotaWindows = canUseIncomingQuotas ? incomingQuotaWindows : [];
   const primaryWindow = quotaWindows[0] || null;
   const secondaryWindow = quotaWindows[1] || null;
   return {
     quotaWindows: quotaWindows.length ? quotaWindows : existing.quotaWindows || [],
-    primaryUsed: primaryWindow?.used_percent ?? stats.rateLimits?.primary?.used_percent ?? existing.primaryUsed ?? null,
-    secondaryUsed: secondaryWindow?.used_percent ?? stats.rateLimits?.secondary?.used_percent ?? existing.secondaryUsed ?? null,
-    primaryResetsAt: primaryWindow?.resets_at ?? stats.rateLimits?.primary?.resets_at ?? existing.primaryResetsAt ?? null,
-    secondaryResetsAt: secondaryWindow?.resets_at ?? stats.rateLimits?.secondary?.resets_at ?? existing.secondaryResetsAt ?? null,
-    primaryWindowMinutes: primaryWindow?.window_minutes ?? stats.rateLimits?.primary?.window_minutes ?? existing.primaryWindowMinutes ?? null,
-    secondaryWindowMinutes: secondaryWindow?.window_minutes ?? stats.rateLimits?.secondary?.window_minutes ?? existing.secondaryWindowMinutes ?? null,
+    primaryUsed: primaryWindow?.used_percent ?? (canUseIncomingQuotas ? stats.rateLimits?.primary?.used_percent : undefined) ?? existing.primaryUsed ?? null,
+    secondaryUsed: secondaryWindow?.used_percent ?? (canUseIncomingQuotas ? stats.rateLimits?.secondary?.used_percent : undefined) ?? existing.secondaryUsed ?? null,
+    primaryResetsAt: primaryWindow?.resets_at ?? (canUseIncomingQuotas ? stats.rateLimits?.primary?.resets_at : undefined) ?? existing.primaryResetsAt ?? null,
+    secondaryResetsAt: secondaryWindow?.resets_at ?? (canUseIncomingQuotas ? stats.rateLimits?.secondary?.resets_at : undefined) ?? existing.secondaryResetsAt ?? null,
+    primaryWindowMinutes: primaryWindow?.window_minutes ?? (canUseIncomingQuotas ? stats.rateLimits?.primary?.window_minutes : undefined) ?? existing.primaryWindowMinutes ?? null,
+    secondaryWindowMinutes: secondaryWindow?.window_minutes ?? (canUseIncomingQuotas ? stats.rateLimits?.secondary?.window_minutes : undefined) ?? existing.secondaryWindowMinutes ?? null,
     plan: stats.rateLimits?.plan_type || existing.plan || null,
     contextUsed: getContextPercent(stats) ?? existing.contextUsed ?? null,
-    rateLimitFingerprint: stats.rateLimitFingerprint || existing.rateLimitFingerprint || '',
+    quotaSource: canUseIncomingQuotas
+      ? accountScopedQuotas ? 'account-scoped' : 'active-session'
+      : existing.quotaSource || null,
+    rateLimitFingerprint: accountScopedQuotas
+      ? stats.rateLimitFingerprint || existing.rateLimitFingerprint || ''
+      : '',
     timestamp: stats.isSnapshotFallback
       ? existing.timestamp || stats.timestamp || null
       : stats.timestamp || existing.timestamp || null
@@ -539,6 +613,15 @@ function planPolicyText(policy = currentPlanPolicy) {
       action: es ? 'Esperar renovacion o mejorar plan' : 'Wait for reset or upgrade'
     };
   }
+  if (policy.adminManaged) {
+    return {
+      title: es ? 'Plan de workspace' : 'Workspace plan',
+      detail: es
+        ? 'La extension muestra las ventanas locales que Codex registre. En Business, Enterprise o Edu, creditos, limites y permisos pueden depender del workspace y del administrador.'
+        : 'The extension shows the local windows Codex records. On Business, Enterprise, or Edu, credits, limits, and permissions can depend on the workspace and admin.',
+      action: es ? 'Revisar Usage/admin si hay limite' : 'Check Usage/admin at limit'
+    };
+  }
   if (policy.canBuyCredits) {
     return {
       title: es ? 'Plan con creditos flexibles' : 'Flexible credits plan',
@@ -546,15 +629,6 @@ function planPolicyText(policy = currentPlanPolicy) {
         ? 'Si las cuotas se agotan, el panel orienta a usar creditos disponibles en Codex Settings > Usage.'
         : 'If quotas run out, the panel points to credits available from Codex Settings > Usage.',
       action: es ? 'Usar creditos cuando aplique' : 'Use credits when available'
-    };
-  }
-  if (policy.adminManaged) {
-    return {
-      title: es ? 'Plan de workspace' : 'Workspace plan',
-      detail: es
-        ? 'La extension muestra cuotas locales y asume que limites, creditos y permisos pueden depender del administrador.'
-        : 'The extension shows local quotas and assumes limits, credits, and permissions can depend on an admin.',
-      action: es ? 'Revisar con admin si hay limite' : 'Check with admin at limit'
     };
   }
   return {
@@ -572,6 +646,70 @@ function planDisplay(stats) {
   if (!stats) return { label: plan, detail: t('localNoData') };
   if (stats.isSnapshotFallback) return { label: plan, detail: t('localSavedSummary') };
   return { label: plan, detail: t('localObservedData') };
+}
+
+function operationalHealth(stats, authStatus = latestAuthStatus, profiles = getAccountProfiles()) {
+  const es = languageTag() === 'es';
+  const quotaWindows = quotaWindowsFromRateLimits(stats?.rateLimits);
+  const credentialCount = profiles.filter(profile => profile.credentialsStored).length;
+  const contextSource = stats?.contextSource === 'workspace'
+    ? (es ? 'workspace actual' : 'current workspace')
+    : stats?.contextSource === 'global'
+      ? (es ? 'sesion global' : 'global session')
+      : (es ? 'sin contexto' : 'no context');
+  const statusLabel = authStatus?.state === 'ok'
+    ? (es ? 'validada' : 'validated')
+    : authStatus?.state === 'invalid'
+      ? (es ? 'requiere login' : 'needs sign-in')
+      : authStatus?.state === 'missing'
+        ? (es ? 'sin sesion' : 'signed out')
+        : (es ? 'pendiente' : 'pending');
+
+  return {
+    title: es ? 'Salud operativa' : 'Operational health',
+    detail: es
+      ? 'Senales locales para saber si puedes empezar trabajo largo con esta cuenta.'
+      : 'Local signals for deciding whether this account is ready for long work.',
+    items: [
+      {
+        label: es ? 'Sesion' : 'Session',
+        value: statusLabel,
+        tone: authStatus?.state === 'ok' ? 'good' : authStatus?.state === 'invalid' || authStatus?.state === 'missing' ? 'danger' : 'warning'
+      },
+      {
+        label: es ? 'Cuotas' : 'Quotas',
+        value: quotaWindows.length ? String(quotaWindows.length) : (es ? 'pendientes' : 'pending'),
+        tone: quotaWindows.length ? 'good' : 'warning'
+      },
+      {
+        label: es ? 'Contexto' : 'Context',
+        value: contextSource,
+        tone: stats?.contextSource === 'workspace' ? 'good' : stats ? 'warning' : 'muted'
+      },
+      {
+        label: es ? 'Credenciales' : 'Credentials',
+        value: String(credentialCount),
+        tone: credentialCount ? 'good' : 'muted'
+      },
+      {
+        label: es ? 'Refresco' : 'Refresh',
+        value: scheduledRefreshSeconds ? `${scheduledRefreshSeconds} s` : (es ? 'pendiente' : 'pending'),
+        tone: scheduledRefreshSeconds ? 'good' : 'muted'
+      }
+    ]
+  };
+}
+
+function statsTimestampMs(stats) {
+  const parsed = Date.parse(stats?.timestamp || '');
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function canAttributeStatsToActiveAccount(account, stats) {
+  if (!account?.hasCredentials || !stats || stats.isSnapshotFallback || !hasQuotaReadings(stats)) return false;
+  if (isAccountScopedRateLimits(stats.rateLimits)) return true;
+  const timestamp = statsTimestampMs(stats);
+  return Boolean(timestamp && (!account.since || timestamp + ACCOUNT_SWITCH_ATTRIBUTION_SLOP_MS >= account.since));
 }
 
 const ACCOUNT_VISUAL_COLORS = [
@@ -644,6 +782,7 @@ function accountQuickPickItem(profile, activeId = '') {
 
 function statsBelongsToAnotherProfile(profileId, profiles, stats) {
   if (!stats || stats.isSnapshotFallback || !stats.rateLimitFingerprint) return false;
+  if (!isAccountScopedRateLimits(stats.rateLimits)) return false;
   return profiles.some(profile =>
     profile.id !== profileId &&
     profile.snapshot?.rateLimitFingerprint === stats.rateLimitFingerprint
@@ -652,7 +791,7 @@ function statsBelongsToAnotherProfile(profileId, profiles, stats) {
 
 function quotaWindowsFromRateLimits(rateLimits) {
   if (!rateLimits || typeof rateLimits !== 'object') return [];
-  const reserved = new Set(['limit_id', 'plan_type', 'tier', 'account_id', 'organization_id']);
+  const reserved = new Set(['limit_id', 'limit_name', 'plan_type', 'tier', 'account_id', 'organization_id', 'windows', 'quotas']);
   const windows = [];
   const pushLimit = (key, value, fallbackIndex) => {
     if (!value || typeof value !== 'object') return;
@@ -714,6 +853,37 @@ function quotaWindowTitle(limit, index = 0) {
   return t('quotaOf', { window: quotaWindowLabel(limit, index) });
 }
 
+function quotaWindowRole(index, total) {
+  if (total <= 1) return 'single';
+  if (index === 0) return 'short';
+  if (index === 1) return 'long';
+  return 'extra';
+}
+
+function quotaWindowHint(limit, index, total) {
+  const role = quotaWindowRole(index, total);
+  if (role === 'short') return t('shortQuotaHint');
+  if (role === 'long') return t('longQuotaHint');
+  if (role === 'single') return t('singleQuotaHint', { window: quotaWindowLabel(limit, index) });
+  return t('extraQuotaHint', { window: quotaWindowLabel(limit, index) });
+}
+
+function quotaWindowExplainTitle(limit, index, total) {
+  const role = quotaWindowRole(index, total);
+  if (role === 'short') return t('shortQuotaAvailable');
+  if (role === 'long') return t('longQuotaAvailable');
+  if (role === 'single') return t('singleQuotaAvailable');
+  return t('extraQuotaAvailable', { window: quotaWindowLabel(limit, index) });
+}
+
+function quotaWindowExplainBody(limit, index, total) {
+  const role = quotaWindowRole(index, total);
+  if (role === 'short') return t('shortQuotaExplanation');
+  if (role === 'long') return t('longQuotaExplanation');
+  if (role === 'single') return t('singleQuotaExplanation', { window: quotaWindowLabel(limit, index) });
+  return t('extraQuotaExplanation', { window: quotaWindowLabel(limit, index) });
+}
+
 function quotaTone(limit) {
   const used = Number(limit?.used_percent);
   return Number(used) >= 90 ? 'danger' : Number(used) >= 75 ? 'warning' : 'accent';
@@ -760,7 +930,9 @@ async function rememberAccount(account, stats) {
   await updateAccountProfiles(profiles => {
     const existing = profiles.find(profile => profile.id === profileId);
     const defaultLabel = accountDisplayLabel(account);
-    const snapshot = mergeAccountSnapshot(existing?.snapshot, stats);
+    const snapshot = mergeAccountSnapshot(existing?.snapshot, stats, {
+      includeGenericQuotas: canAttributeStatsToActiveAccount(account, stats)
+    });
     const updated = {
       id: profileId,
       label: existing?.label || defaultLabel,
@@ -773,7 +945,7 @@ async function rememberAccount(account, stats) {
       snapshot
     };
     const fingerprint = snapshot.rateLimitFingerprint || '';
-    const rest = profiles
+    const rest = scrubDuplicatedGenericQuotaSnapshots(profiles, profileId)
       .filter(profile => profile.id !== profileId)
       .map(profile =>
         fingerprint && profile.snapshot?.rateLimitFingerprint === fingerprint
@@ -865,98 +1037,134 @@ function buildTooltip(stats) {
   tooltip.supportHtml = true;
   const rateLimits = stats.rateLimits;
   const quotaWindows = quotaWindowsFromRateLimits(rateLimits);
-  const accountLabel = stats.accountLabel || t('accountDefault');
+  const accountLabel = stats.accountEmail || stats.accountLabel || t('accountDefault');
   const planInfo = planDisplay(stats);
   const updatedAt = new Date(lastRefreshAt || Date.now()).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit'
   });
-
-  tooltip.appendMarkdown(
-    `### $(account) ${escapeMarkdown(accountLabel)}\n\n` +
-    `<sub>${escapeHtml(t('localPlan', { label: planInfo.label }))}</sub>\n\n` +
-    `[$(dashboard) ${escapeMarkdown(t('openPanel'))}](command:codexGestion.showDashboard) &nbsp;&nbsp; ` +
-    `[$(refresh) ${escapeMarkdown(t('refresh'))}](command:codexGestion.refresh)\n\n` +
-    '---\n\n'
-  );
-
-  if (latestAuthStatus.state !== 'ok') {
-    tooltip.appendMarkdown(
-      `$(warning) **${escapeMarkdown(t('session'))}:** ${escapeMarkdown(latestAuthStatus.message || latestAuthStatus.state)}\n\n`
-    );
-  }
-
+  const version = extensionContext.extension.packageJSON.version;
+  const sessionLabel = latestAuthStatus.state === 'ok'
+    ? (languageTag() === 'es' ? 'validada' : 'validated')
+    : latestAuthStatus.message || latestAuthStatus.state || t('pending');
   const tooltipQuotas = quotaWindows.length ? quotaWindows : [rateLimits?.primary, rateLimits?.secondary].filter(Boolean);
-  if (tooltipQuotas.length) {
-    tooltipQuotas.forEach((limit, index) => {
-      if (index > 0) tooltip.appendMarkdown('---\n\n');
-      tooltip.appendMarkdown(formatTooltipQuota(quotaWindowTitle(limit, index), limit));
-    });
-    tooltip.appendMarkdown('---\n\n');
-  } else {
-    tooltip.appendMarkdown(escapeMarkdown(t('quotaDataPending')) + '\n\n---\n\n');
-  }
-  tooltip.appendMarkdown(
-    `<sub>${escapeHtml(t('updated', { time: updatedAt }))} ` +
-    `${stats.isSnapshotFallback ? `&nbsp;|&nbsp; ${escapeHtml(t('savedSummary'))} ` : ''}` +
-    `&nbsp;|&nbsp; Codex Gestion v${escapeHtml(extensionContext.extension.packageJSON.version)}</sub>`
-  );
+
+  tooltip.appendMarkdown(tooltipHeaderSvg(accountLabel, version, `${t('localPlan', { label: planInfo.label })} - ${sessionLabel}`));
+  tooltip.appendMarkdown('\n\n');
+  tooltip.appendMarkdown(tooltipActionLinks());
+  tooltip.appendMarkdown('\n\n');
+  tooltip.appendMarkdown(tooltipQuotaPanelSvg({
+    accountLabel,
+    quotas: tooltipQuotas.map((limit, index) => tooltipQuotaView(quotaWindowTitle(limit, index), limit)),
+    updatedAt,
+    snapshot: Boolean(stats.isSnapshotFallback)
+  }));
   return tooltip;
 }
 
-function formatTooltipQuota(label, limit) {
+function tooltipQuotaView(label, limit) {
   const used = finiteNumber(limit?.used_percent);
   const usedPercent = used === null ? null : clampPercent(used);
   const available = usedPercent === null ? null : 100 - usedPercent;
   const resetMoment = limit ? formatResetMoment(limit.resets_at) : t('noData');
-  const resetFull = limit ? formatResetFull(limit.resets_at) : t('noData');
 
   if (usedPercent === null || available === null) {
-    return (
-      `**${escapeMarkdown(label)}**
-
-` +
-      `<sub>${escapeHtml(t('renewsFull', { time: resetFull }))} &nbsp;|&nbsp; ${escapeHtml(t('noVisualReading'))}</sub>
-
-`
-    );
+    return { label, resetLabel: resetMoment, pending: true };
   }
 
-  const availableLabel = `${Math.round(available)}% ${t('free')}`;
-  const usedLabel = `${Math.round(usedPercent)}% ${t('used')}`;
-  return (
-    `**${escapeMarkdown(label)}:** ${escapeMarkdown(availableLabel)}
-
-` +
-    `<sub>${escapeHtml(t('renewsFull', { time: resetFull }))} &nbsp;|&nbsp; ${escapeHtml(usedLabel)}</sub>
-
-` +
-    tooltipQuotaCard(label, usedPercent, available, resetMoment) +
-    `
-
-`
-  );
+  return {
+    label,
+    resetLabel: resetMoment,
+    used: Math.round(clampPercent(usedPercent)),
+    available: Math.max(0, Math.round(available))
+  };
 }
-function tooltipQuotaCard(label, usedPercent, availablePercentValue, resetLabel) {
-  const used = Math.round(clampPercent(usedPercent));
-  const available = Math.max(0, 100 - used);
-  const tone = used >= 90 ? '#f48771' : used >= 75 ? '#cca700' : '#4ec9b0';
-  const width = 304;
-  const height = 86;
-  const trackWidth = 272;
-  const fillWidth = Math.max(4, Math.round((available / 100) * trackWidth));
+
+function tooltipHeaderSvg(accountLabel, version, planLabel) {
+  const width = 330;
+  const padding = 12;
+  const contentWidth = width - padding * 2;
+  const height = 70;
+  const versionText = `v${version}`;
+  const text = (value, max = 42) => truncateSvgText(String(value || ''), max);
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-      <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="8" fill="#252526" stroke="#3c3c3c"/>
-      <text x="14" y="23" fill="#f3f3f3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">${escapeHtml(label)}</text>
-      <text x="290" y="23" fill="#a6a6a6" font-family="Segoe UI, Arial, sans-serif" font-size="10" text-anchor="end">${escapeHtml(resetLabel)}</text>
-      <rect x="14" y="38" width="${trackWidth}" height="13" rx="6.5" fill="#3a3a3a"/>
-      <rect x="14" y="38" width="${fillWidth}" height="13" rx="6.5" fill="${tone}"/>
-      <text x="14" y="70" fill="#a6a6a6" font-family="Segoe UI, Arial, sans-serif" font-size="11">${escapeHtml(used)}% ${escapeHtml(t('used'))}</text>
-      <text x="290" y="70" fill="#f3f3f3" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" text-anchor="end">${escapeHtml(available)}% ${escapeHtml(t('free'))}</text>
+      <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="10" fill="#252526" stroke="#3c3c3c"/>
+      <text x="${padding}" y="25" fill="#f3f3f3" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700">${escapeHtml(text(accountLabel, 30))}</text>
+      <rect x="${width - padding - 50}" y="14" width="50" height="24" rx="12" fill="#303436"/>
+      <text x="${width - padding - 25}" y="30" fill="#a6a6a6" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="700" text-anchor="middle">${escapeHtml(versionText)}</text>
+      <text x="${padding}" y="47" fill="#a6a6a6" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="600">${escapeHtml(text(planLabel, 42))}</text>
+      <line x1="${padding}" y1="62" x2="${padding + contentWidth}" y2="62" stroke="#3c3c3c"/>
     </svg>`;
   const encoded = Buffer.from(svg, 'utf8').toString('base64');
-  return `<img src="data:image/svg+xml;base64,${encoded}" alt="${escapeHtml(label)}: ${escapeHtml(available)}% ${escapeHtml(t('free'))}" width="${width}" height="${height}">`;
+  return `<img src="data:image/svg+xml;base64,${encoded}" alt="${escapeHtml(accountLabel)}" width="${width}" height="${height}">`;
+}
+
+function tooltipActionLinks() {
+  const overviewLabel = languageTag() === 'es' ? 'Resumen' : 'Overview';
+  return (
+    `<a href="command:codexGestion.showDashboard">${tooltipButtonSvg(overviewLabel, 72)}</a>` +
+    `&nbsp;` +
+    `<a href="command:codexGestion.refresh">${tooltipButtonSvg(t('refresh'), 82)}</a>`
+  );
+}
+
+function tooltipButtonSvg(label, width) {
+  const height = 29;
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <rect x="0" y="0" width="${width}" height="${height}" rx="7" fill="#3a3d41"/>
+      <text x="${width / 2}" y="19" fill="#f3f3f3" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" text-anchor="middle">${escapeHtml(truncateSvgText(label, 12))}</text>
+    </svg>`;
+  const encoded = Buffer.from(svg, 'utf8').toString('base64');
+  return `<img src="data:image/svg+xml;base64,${encoded}" alt="${escapeHtml(label)}" width="${width}" height="${height}">`;
+}
+
+function tooltipQuotaPanelSvg({ accountLabel, quotas, updatedAt, snapshot }) {
+  const width = 330;
+  const padding = 12;
+  const contentWidth = width - padding * 2;
+  const rowHeight = 74;
+  const footerHeight = 36;
+  const rows = quotas.length ? quotas : [{ label: t('quotaDataPending'), resetLabel: t('noData'), pending: true }];
+  const height = padding + rows.length * rowHeight + footerHeight + padding;
+  const barWidth = contentWidth;
+  const footerLeft = snapshot
+    ? `${t('updated', { time: updatedAt })} - ${t('savedSummary')}`
+    : `${t('checkedByExtension')}: ${updatedAt}`;
+  const text = (value, max = 42) => truncateSvgText(String(value || ''), max);
+
+  const quotaRows = rows.map((quota, index) => {
+    const y = padding + index * rowHeight;
+    const fillWidth = quota.pending ? 0 : Math.max(6, Math.round((quota.available / 100) * barWidth));
+    const metaLeft = quota.pending ? t('noVisualReading') : `${quota.used}% ${t('used')}`;
+    const metaRight = quota.pending ? t('pending') : `${quota.available}% ${t('free')}`;
+    return `
+      <line x1="${padding}" y1="${y}" x2="${width - padding}" y2="${y}" stroke="#3c3c3c"/>
+      <text x="${padding}" y="${y + 22}" fill="#f3f3f3" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700">${escapeHtml(text(quota.label, 24))}</text>
+      <text x="${width - padding}" y="${y + 22}" fill="#a6a6a6" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="600" text-anchor="end">${escapeHtml(text(quota.resetLabel, 18))}</text>
+      <rect x="${padding}" y="${y + 34}" width="${barWidth}" height="10" rx="5" fill="#343838"/>
+      ${quota.pending ? '' : `<rect x="${padding}" y="${y + 34}" width="${fillWidth}" height="10" rx="5" fill="#4ec9b0"/>`}
+      <text x="${padding}" y="${y + 64}" fill="#a6a6a6" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="600">${escapeHtml(text(metaLeft, 26))}</text>
+      <text x="${width - padding}" y="${y + 64}" fill="#f3f3f3" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="700" text-anchor="end">${escapeHtml(text(metaRight, 18))}</text>`;
+  }).join('');
+
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="10" fill="#252526" stroke="#3c3c3c"/>
+      ${quotaRows}
+      <line x1="${padding}" y1="${height - footerHeight - padding + 2}" x2="${width - padding}" y2="${height - footerHeight - padding + 2}" stroke="#3c3c3c"/>
+      <text x="${padding}" y="${height - 18}" fill="#a6a6a6" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="600">${escapeHtml(text(footerLeft, 34))}</text>
+      <text x="${width - padding}" y="${height - 18}" fill="#a6a6a6" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="600" text-anchor="end">Codex Gestion</text>
+    </svg>`;
+  const encoded = Buffer.from(svg, 'utf8').toString('base64');
+  return `<img src="data:image/svg+xml;base64,${encoded}" alt="${escapeHtml(accountLabel)}" width="${width}" height="${height}">`;
+}
+
+function truncateSvgText(value, maxLength) {
+  const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxLength - 1))}...`;
 }
 
 function tooltipQuotaBar(usedPercent, availablePercentValue) {
@@ -1065,20 +1273,30 @@ async function performRefresh(showNotification) {
     if (latestStats && statsBelongsToAnotherProfile(profileId, profiles, latestStats)) {
       latestStats = null;
     }
-    if (!latestStats && !expectedFingerprint) {
+    if (!latestStats || !hasQuotaReadings(latestStats)) {
       latestStats = collectStats(account.since);
       if (latestStats && statsBelongsToAnotherProfile(profileId, profiles, latestStats)) {
         latestStats = null;
       }
     }
-    if (!latestStats && !expectedFingerprint) {
-      latestStats = collectStats(0);
+    if (!latestStats || !hasQuotaReadings(latestStats)) {
+      const globalStats = collectStats(0);
+      const canUseGlobalStats = globalStats && (
+        expectedFingerprint ||
+        isAccountScopedRateLimits(globalStats.rateLimits) ||
+        !account.hasCredentials ||
+        !account.since
+      );
+      latestStats = canUseGlobalStats ? globalStats : latestStats;
       if (latestStats && statsBelongsToAnotherProfile(profileId, profiles, latestStats)) {
         latestStats = null;
       }
     }
-    if (!latestStats && activeProfile) {
-      latestStats = statsFromProfileSnapshot(activeProfile);
+    if ((!latestStats || !hasQuotaReadings(latestStats)) && activeProfile) {
+      const snapshotStats = statsFromProfileSnapshot(activeProfile);
+      if (snapshotStats && (!latestStats || hasQuotaReadings(snapshotStats))) {
+        latestStats = snapshotStats;
+      }
     }
     latestError = null;
     await rememberAccount(account, latestStats);
@@ -1141,7 +1359,7 @@ async function openCodex() {
   const commands = await vscode.commands.getCommands(true);
   if (commands.includes('chatgpt.openSidebar')) {
     await vscode.commands.executeCommand('chatgpt.openSidebar');
-    return;
+    return true;
   }
 
   const action = await vscode.window.showWarningMessage(
@@ -1151,6 +1369,7 @@ async function openCodex() {
   if (action === 'Buscar extension de Codex') {
     await vscode.commands.executeCommand('workbench.extensions.search', '@id:openai.chatgpt');
   }
+  return false;
 }
 
 function delay(ms) {
@@ -1524,6 +1743,9 @@ function buildDiagnostics() {
   const sessionFiles = getSessionFiles(SESSION_ROOT, 0) || [];
   const newestSession = sessionFiles[0];
   const workspaceCount = (vscode.workspace.workspaceFolders || []).length;
+  const profiles = getAccountProfiles();
+  const credentialCount = profiles.filter(profile => profile.credentialsStored).length;
+  const health = operationalHealth(latestStats, latestAuthStatus, profiles);
 
   return [
     'Codex Gestion diagnostics',
@@ -1541,7 +1763,14 @@ function buildDiagnostics() {
     `Session files found: ${sessionFiles.length}`,
     `Newest session modified: ${newestSession ? new Date(newestSession.mtimeMs).toISOString() : 'none'}`,
     `Open workspace folders: ${workspaceCount}`,
+    `Saved account profiles: ${profiles.length}`,
+    `Saved encrypted credentials: ${credentialCount}`,
     `Latest stats available: ${Boolean(latestStats)}`,
+    `Latest stats has quota readings: ${hasQuotaReadings(latestStats)}`,
+    `Latest stats source: ${latestStats?.isSnapshotFallback ? 'saved-snapshot' : latestStats ? 'local-session' : 'none'}`,
+    `Context source: ${latestStats?.contextSource || 'none'}`,
+    `Quota windows detected: ${quotaWindowsFromRateLimits(latestStats?.rateLimits).length}`,
+    `Operational health: ${health.items.map(item => `${item.label}=${item.value}`).join(', ')}`,
     `Plan policy: ${currentPlanPolicy.label} / ${currentPlanPolicy.family} / ${currentPlanPolicy.source}`,
     `Plan can buy credits: ${currentPlanPolicy.canBuyCredits}`,
     `Plan admin managed: ${currentPlanPolicy.adminManaged}`,
@@ -2032,30 +2261,97 @@ async function openProjectContext(reason = 'manual') {
   await vscode.window.showTextDocument(document, vscode.ViewColumn.Beside);
 }
 
-function metricCard(label, value, percent, detail, hint, tone = 'accent') {
-  const normalized = clampPercent(percent);
-  const used = 100 - normalized;
+function dashboardMetricItems() {
+  const limits = latestStats?.rateLimits || {};
+  const quotaWindows = quotaWindowsFromRateLimits(limits);
+  const displayedQuotaWindows = quotaWindows.length ? quotaWindows : [limits.primary, limits.secondary].filter(Boolean);
+  if (!displayedQuotaWindows.length) {
+    return [{
+      key: 'quota-local',
+      label: t('quotaDataPending'),
+      value: t('pending'),
+      percent: null,
+      detail: t('pendingAccountData'),
+      hint: t('openCodexForAccountData'),
+      tone: 'accent'
+    }];
+  }
+  return displayedQuotaWindows.map((limit, index) => {
+    const available = availablePercent(limit?.used_percent);
+    return {
+      key: `quota-${index}`,
+      label: quotaWindowTitle(limit, index),
+      value: available == null ? t('pending') : t('availableValue', { value: formatPercent(available) }),
+      percent: available,
+      detail: limit ? t('renewsFull', { time: formatResetFull(limit.resets_at) }) : t('pendingAccountData'),
+      hint: quotaWindowHint(limit, index, displayedQuotaWindows.length),
+      tone: quotaTone(limit)
+    };
+  });
+}
+
+function dashboardLivePayload() {
+  const limits = latestStats?.rateLimits || {};
+  const displayedQuotaWindows = dashboardMetricItems();
+  const resetCandidates = (quotaWindowsFromRateLimits(limits).length ? quotaWindowsFromRateLimits(limits) : [limits.primary, limits.secondary].filter(Boolean))
+    .map(limit => Number(limit?.resets_at))
+    .filter(value => Number.isFinite(value) && value * 1000 > Date.now());
+  const nextReset = resetCandidates.length ? Math.min(...resetCandidates) : null;
+  const advice = getUsageAdvice(latestStats, latestAuthStatus);
+  const planInfo = planDisplay(latestStats);
+  const health = operationalHealth(latestStats, latestAuthStatus, getAccountProfiles());
+  return {
+    summary: {
+      title: advice.title,
+      detail: advice.detail,
+      nextReset: nextReset ? formatResetMoment(nextReset) : t('noData'),
+      plan: t('localPlan', { label: planInfo.label }),
+      contextLabel: health.items[2].label,
+      contextValue: health.items[2].value
+    },
+    metrics: displayedQuotaWindows.map(item => {
+      const hasPercent = Number.isFinite(Number(item.percent));
+      const normalized = hasPercent ? clampPercent(item.percent) : 0;
+      const used = hasPercent ? 100 - normalized : 0;
+      return {
+        ...item,
+        available: normalized,
+        used,
+        pending: !hasPercent,
+        center: hasPercent ? `${Math.round(Number(item.percent))}%` : '--',
+        centerLabel: hasPercent ? t('free') : t('pending'),
+        freeText: `${Math.round(normalized)}% ${t('free')}`,
+        usedText: `${Math.round(used)}% ${t('used')}`
+      };
+    })
+  };
+}
+
+function metricCard(label, value, percent, detail, hint, tone = 'accent', key = label) {
+  const hasPercent = Number.isFinite(Number(percent));
+  const normalized = hasPercent ? clampPercent(percent) : 0;
+  const used = hasPercent ? 100 - normalized : 0;
   const displayValue = value ?? t('unavailable');
   return `
-    <section class="metric-card ${tone}" data-chart-card data-available="${escapeHtml(normalized)}" data-used="${escapeHtml(used)}" data-tone="${escapeHtml(tone)}">
+    <section class="metric-card ${tone} ${hasPercent ? '' : 'loading'}" data-chart-card data-chart-key="${escapeHtml(key)}" data-available="${escapeHtml(normalized)}" data-used="${escapeHtml(used)}" data-tone="${escapeHtml(tone)}" data-pending="${hasPercent ? 'false' : 'true'}">
       <div class="metric-chart-wrap" role="img" aria-label="${escapeHtml(label)}: ${escapeHtml(t('availableValue', { value: Math.round(normalized) + '%' }))}">
         <canvas class="metric-chart" width="144" height="144"></canvas>
         <div class="metric-center">
-          <strong>${Number.isFinite(Number(percent)) ? `${Math.round(Number(percent))}%` : '--'}</strong>
-          <span>${escapeHtml(t('free'))}</span>
+          <strong data-chart-center>${hasPercent ? `${Math.round(Number(percent))}%` : '--'}</strong>
+          <span data-chart-center-label>${escapeHtml(hasPercent ? t('free') : t('pending'))}</span>
         </div>
       </div>
       <div class="metric-copy">
         <div class="metric-top">
-          <span class="metric-label">${escapeHtml(label)}</span>
+          <span class="metric-label" data-chart-label>${escapeHtml(label)}</span>
         </div>
-        <strong class="metric-value">${escapeHtml(displayValue)}</strong>
+        <strong class="metric-value" data-chart-value>${escapeHtml(displayValue)}</strong>
         <div class="quota-legend">
-          <span><i class="legend-dot free"></i>${escapeHtml(Math.round(normalized))}% ${escapeHtml(t('free'))}</span>
-          <span><i class="legend-dot used"></i>${escapeHtml(Math.round(used))}% ${escapeHtml(t('used'))}</span>
+          <span><i class="legend-dot free"></i><span data-chart-free>${escapeHtml(Math.round(normalized))}% ${escapeHtml(t('free'))}</span></span>
+          <span><i class="legend-dot used"></i><span data-chart-used>${escapeHtml(Math.round(used))}% ${escapeHtml(t('used'))}</span></span>
         </div>
-        <span class="metric-detail">${escapeHtml(detail || '')}</span>
-        <small class="metric-hint">${escapeHtml(hint || '')}</small>
+        <span class="metric-detail" data-chart-detail>${escapeHtml(detail || '')}</span>
+        <small class="metric-hint" data-chart-hint>${escapeHtml(hint || '')}</small>
       </div>
     </section>
   `;
@@ -2068,9 +2364,11 @@ function accountCards(activeProfileId) {
   }
 
   return profiles.map(profile => {
-    const snapshot = visibleAccountSnapshot(profile, profiles, activeProfileId);
-    const quotaSummaries = snapshotQuotaWindows(snapshot).slice(0, 2);
     const isActive = profile.id === activeProfileId;
+    const snapshot = isActive && latestStats
+      ? mergeAccountSnapshot(profile.snapshot, latestStats, { includeGenericQuotas: true })
+      : visibleAccountSnapshot(profile, profiles, activeProfileId);
+    const quotaSummaries = snapshotQuotaWindows(snapshot).slice(0, 2);
     const plan = snapshot?.plan
       ? `Plan local ${String(snapshot.plan).toUpperCase()}`
       : t('localPlanPending');
@@ -2080,15 +2378,9 @@ function accountCards(activeProfileId) {
       : profile.credentialsStored
         ? `<span class="badge muted">${escapeHtml(t('readyToUse'))}</span>`
         : `<span class="badge muted">${escapeHtml(t('historyOnly'))}</span>`;
-    const cardTitle = isActive
-      ? t('manageActiveAccount')
-      : profile.credentialsStored
-        ? t('activateOrManageAccount')
-        : t('manageAccountHistory');
     const style = ` style="--account-color: ${escapeHtml(visual.color)}; --account-bg: ${escapeHtml(visual.background)}; --account-border: ${escapeHtml(visual.border)};"`;
-    const cardAction = ` data-action="accountCard" data-profile="${escapeHtml(profile.id)}" role="button" tabindex="0" title="${escapeHtml(cardTitle)}"`;
     return `
-      <article class="account-card ${isActive ? 'active' : 'selectable'}"${style}${cardAction}>
+      <article class="account-card ${isActive ? 'active' : ''}"${style}>
         <div class="account-main">
           <div class="account-avatar" aria-hidden="true">${escapeHtml(visual.initials)}</div>
           <div class="account-copy">
@@ -2108,6 +2400,12 @@ function accountCards(activeProfileId) {
         </div>
         <small class="account-seen">${escapeHtml(t('lastUsed'))}: ${escapeHtml(new Date(profile.lastSeen).toLocaleString())}</small>
         <div class="account-actions">
+          ${!isActive && profile.credentialsStored
+            ? `<button class="small secondary" data-action="switchStoredAccount" data-profile="${escapeHtml(profile.id)}">${escapeHtml(t('activateAccount'))}</button>`
+            : ''}
+          ${!isActive && !profile.credentialsStored
+            ? `<button class="small secondary" data-action="addAccount">${escapeHtml(t('signIn'))}</button>`
+            : ''}
           <button class="small secondary" data-action="renameAccount" data-profile="${escapeHtml(profile.id)}">${escapeHtml(t('rename'))}</button>
           ${isActive
             ? `<span class="active-note">${escapeHtml(t('accountInUse'))}</span>`
@@ -2143,6 +2441,11 @@ function languageSelectorHtml() {
     return `<button class="${active ? 'active' : ''}" data-action="setLanguage" data-language="${escapeHtml(value)}" aria-pressed="${active ? 'true' : 'false'}">${escapeHtml(label)}</button>`;
   }).join('');
   return `<div class="language-selector" role="group" aria-label="${escapeHtml(t('languageSelector'))}" title="${escapeHtml(t('languageSelector'))}">${buttons}</div>`;
+}
+
+function dashboardNavButton(view, label) {
+  const active = dashboardView === view;
+  return `<button class="nav-button ${active ? 'active' : ''}" data-action="setView" data-view="${escapeHtml(view)}" aria-pressed="${active ? 'true' : 'false'}"><span class="nav-dot"></span>${escapeHtml(label)}</button>`;
 }
 
 async function setDashboardLanguage(value) {
@@ -2205,6 +2508,8 @@ function dashboardHtml(webview) {
   });
   const planInfo = planDisplay(latestStats);
   const planStrategy = planPolicyText(currentPlanPolicy);
+  const health = operationalHealth(latestStats, latestAuthStatus, profiles);
+  const metricItems = dashboardMetricItems();
   const panelSessionNotice = account.hasCredentials
     ? `<div class="notice warning-notice"><strong>${escapeHtml(t('activeLocalAccount'))}</strong>${escapeHtml(t('activeLocalAccountDetail'))}</div>`
     : '';
@@ -2213,6 +2518,13 @@ function dashboardHtml(webview) {
     : latestAuthStatus.state === 'skipped' || latestAuthStatus.state === 'unknown'
       ? `<div class="notice warning-notice"><strong>${escapeHtml(t('pendingCheck'))}</strong>${escapeHtml(latestAuthStatus.message)}</div>`
       : '';
+  const es = languageTag() === 'es';
+  const viewLabels = {
+    overview: es ? 'Resumen' : 'Overview',
+    accounts: es ? 'Cuentas' : 'Accounts',
+    context: es ? 'Contexto' : 'Context',
+    diagnostics: es ? 'Diagnostico' : 'Diagnostics'
+  };
 
   return `<!DOCTYPE html>
   <html lang="${languageTag()}">
@@ -2230,7 +2542,60 @@ function dashboardHtml(webview) {
         background: var(--vscode-editor-background);
         font-family: var(--vscode-font-family);
       }
-      main { max-width: 1040px; margin: 0 auto; }
+      main { max-width: 1180px; margin: 0 auto; }
+      .app-shell {
+        display: grid;
+        grid-template-columns: 176px minmax(0, 1fr);
+        gap: 18px;
+        align-items: start;
+      }
+      .rail {
+        position: sticky;
+        top: 18px;
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+        border: 1px solid var(--vscode-widget-border);
+        border-radius: 10px;
+        background: var(--vscode-editorWidget-background);
+      }
+      .rail-brand {
+        display: grid;
+        gap: 2px;
+        padding: 6px 6px 10px;
+        border-bottom: 1px solid var(--vscode-widget-border);
+        margin-bottom: 4px;
+      }
+      .rail-brand strong { font-size: 13px; }
+      .rail-brand span { color: var(--vscode-descriptionForeground); font-size: 11px; }
+      .nav-button {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 9px;
+        width: 100%;
+        min-height: 34px;
+        padding: 8px 9px;
+        color: var(--vscode-descriptionForeground);
+        background: transparent;
+        border-color: transparent;
+        text-align: left;
+      }
+      .nav-button:hover,
+      .nav-button.active {
+        color: var(--vscode-foreground);
+        background: var(--vscode-toolbar-hoverBackground);
+      }
+      .nav-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+        opacity: .72;
+      }
+      .content { min-width: 0; }
+      .view-panel { display: none; }
+      .view-panel.active { display: block; }
       header {
         display: flex;
         justify-content: space-between;
@@ -2307,11 +2672,71 @@ function dashboardHtml(webview) {
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         gap: 14px;
       }
-      .metric-card, .account-card, .notice, .identity, .plan-strategy {
+      .overview-main .metrics { grid-template-columns: minmax(0, 1fr); }
+      .metric-card, .account-card, .notice, .overview-card {
         border: 1px solid var(--vscode-widget-border);
-        border-radius: 14px;
+        border-radius: 10px;
         background: var(--vscode-editorWidget-background);
-        box-shadow: 0 8px 28px var(--vscode-widget-shadow);
+        box-shadow: 0 6px 18px var(--vscode-widget-shadow);
+      }
+      .overview {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(360px, 390px);
+        gap: 14px;
+        align-items: start;
+        margin-bottom: 16px;
+      }
+      .overview-main {
+        display: grid;
+        gap: 14px;
+        min-width: 0;
+      }
+      .overview-card {
+        display: grid;
+        align-content: center;
+        padding: 18px;
+      }
+      .overview-card strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 23px;
+      }
+      .overview-card p {
+        max-width: 620px;
+        margin-bottom: 14px;
+        color: var(--vscode-descriptionForeground);
+        line-height: 1.45;
+      }
+      .summary-panel {
+        align-content: start;
+        min-height: 0;
+        padding: 14px 16px;
+      }
+      .summary-panel strong {
+        margin-bottom: 5px;
+        font-size: 18px;
+      }
+      .summary-panel p {
+        margin-bottom: 10px;
+        line-height: 1.35;
+      }
+      .summary-facts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .summary-facts span {
+        padding: 4px 7px;
+        border-radius: 999px;
+        color: var(--vscode-descriptionForeground);
+        background: var(--vscode-toolbar-hoverBackground);
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .side-panel {
+        display: grid;
+        gap: 12px;
+        padding: 14px;
       }
       .onboarding {
         display: grid;
@@ -2330,14 +2755,9 @@ function dashboardHtml(webview) {
       .onboarding-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
       .recommendation {
         display: grid;
-        grid-template-columns: auto 1fr auto;
+        grid-template-columns: auto 1fr;
         align-items: center;
-        gap: 14px;
-        padding: 16px 18px;
-        margin-bottom: 16px;
-        border: 1px solid var(--vscode-widget-border);
-        border-radius: 14px;
-        background: var(--vscode-editorWidget-background);
+        gap: 12px;
       }
       .recommendation-icon {
         width: 38px;
@@ -2359,15 +2779,16 @@ function dashboardHtml(webview) {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 16px;
-        padding: 16px 18px;
-        margin-bottom: 16px;
+        gap: 12px;
+        min-width: 0;
+        padding: 0 0 12px;
+        border-bottom: 1px solid var(--vscode-widget-border);
       }
-      .identity-main { display: flex; align-items: center; gap: 12px; }
+      .identity-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
       .avatar {
-        width: 42px;
-        height: 42px;
-        border-radius: 12px;
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
         display: grid;
         place-items: center;
         border: 1px solid var(--account-border, var(--vscode-focusBorder));
@@ -2377,25 +2798,99 @@ function dashboardHtml(webview) {
         font-weight: 800;
         letter-spacing: 0;
       }
-      .identity-copy { display: flex; flex-direction: column; gap: 3px; }
+      .identity-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+      .identity-copy strong {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 15px;
+      }
+      .identity-copy span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12px;
+      }
       .plan-pill {
-        padding: 5px 10px;
+        flex: 0 0 auto;
+        max-width: 42%;
+        overflow: hidden;
+        padding: 5px 9px;
         border-radius: 999px;
         color: var(--vscode-badge-foreground);
         background: var(--vscode-badge-background);
         font-size: 12px;
         font-weight: 700;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .plan-strategy {
         display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 12px;
-        align-items: center;
-        padding: 14px 18px;
-        margin-bottom: 16px;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 10px;
+        align-items: start;
+        padding: 12px;
+        border: 1px solid var(--vscode-widget-border);
+        border-radius: 8px;
+        background: var(--vscode-editor-background);
       }
+      .plan-strategy::before {
+        content: "";
+        width: 9px;
+        height: 9px;
+        margin-top: 5px;
+        border-radius: 50%;
+        background: var(--vscode-charts-green);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--vscode-charts-green) 18%, transparent);
+      }
+      .plan-strategy-copy { min-width: 0; }
       .plan-strategy strong, .plan-strategy span { display: block; }
-      .plan-strategy small { justify-self: end; font-weight: 700; }
+      .plan-strategy strong {
+        margin-bottom: 4px;
+        font-size: 14px;
+      }
+      .plan-strategy span {
+        color: var(--vscode-descriptionForeground);
+        line-height: 1.35;
+      }
+      .plan-action {
+        display: inline-block !important;
+        width: fit-content;
+        max-width: 100%;
+        margin-top: 9px;
+        padding: 4px 7px;
+        border-radius: 6px;
+        color: var(--vscode-foreground) !important;
+        background: var(--vscode-toolbar-hoverBackground);
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1.25;
+      }
+      .side-stat-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 7px;
+      }
+      .side-stat {
+        min-width: 0;
+        padding: 10px;
+        border-radius: 8px;
+        background: var(--vscode-editor-background);
+      }
+      .side-stat span, .side-stat strong { display: block; }
+      .side-stat span {
+        color: var(--vscode-descriptionForeground);
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      .side-stat strong {
+        margin-top: 5px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 14px;
+      }
       .metric-card {
         min-height: 208px;
         padding: 18px;
@@ -2410,6 +2905,18 @@ function dashboardHtml(webview) {
         height: 136px;
       }
       .metric-chart { width: 136px !important; height: 136px !important; }
+      .metric-card.loading .metric-chart { opacity: 0; }
+      .metric-card.loading .metric-chart-wrap::before {
+        content: "";
+        position: absolute;
+        inset: 6px;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle, transparent 58%, var(--vscode-descriptionForeground) 59% 64%, transparent 65%),
+          conic-gradient(from 90deg, var(--vscode-descriptionForeground) 0 20%, transparent 20% 35%, var(--vscode-descriptionForeground) 35% 55%, transparent 55% 70%, var(--vscode-descriptionForeground) 70% 88%, transparent 88% 100%);
+        opacity: .32;
+      }
+      .metric-card.loading .quota-legend { display: none; }
       .metric-center {
         position: absolute;
         inset: 30px;
@@ -2446,6 +2953,46 @@ function dashboardHtml(webview) {
       .notice strong { display: block; margin-bottom: 5px; }
       .danger-notice { border-color: var(--vscode-inputValidation-errorBorder); }
       .warning-notice { border-color: var(--vscode-inputValidation-warningBorder); }
+      dialog {
+        width: min(760px, calc(100vw - 32px));
+        border: 1px solid var(--vscode-widget-border);
+        border-radius: 10px;
+        color: var(--vscode-foreground);
+        background: var(--vscode-editorWidget-background);
+        box-shadow: 0 18px 48px rgba(0, 0, 0, .45);
+      }
+      dialog::backdrop { background: rgba(0, 0, 0, .55); }
+      .dialog-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .dialog-head h2 { margin: 0; }
+      .account-manager {
+        display: grid;
+        gap: 12px;
+      }
+      .modal-feedback {
+        min-height: 32px;
+        padding: 8px 10px;
+        border: 1px solid var(--vscode-widget-border);
+        border-radius: 8px;
+        color: var(--vscode-descriptionForeground);
+        background: var(--vscode-editor-background);
+        font-size: 12px;
+      }
+      .diagnostics-output {
+        max-height: 420px;
+        overflow: auto;
+        padding: 12px;
+        border-radius: 8px;
+        color: var(--vscode-descriptionForeground);
+        background: var(--vscode-editor-background);
+        font: 12px/1.5 Consolas, monospace;
+        white-space: pre-wrap;
+      }
       .accounts { display: grid; gap: 9px; }
       .account-card {
         padding: 16px 18px;
@@ -2546,6 +3093,9 @@ function dashboardHtml(webview) {
       .footnote { margin-top: 24px; font-size: 12px; color: var(--vscode-descriptionForeground); }
       @media (max-width: 640px) {
         body { padding: 18px; }
+        .app-shell { grid-template-columns: 1fr; }
+        .rail { position: static; grid-template-columns: repeat(2, 1fr); }
+        .rail-brand { grid-column: 1 / -1; }
         header { flex-direction: column; }
         .header-controls, .header-language { align-items: flex-start; justify-content: flex-start; }
         .header-controls { width: 100%; }
@@ -2555,7 +3105,11 @@ function dashboardHtml(webview) {
         .metric-card { grid-template-columns: 1fr; }
         .metric-chart-wrap { margin: 0 auto; }
         .accounts-heading { align-items: flex-start; flex-direction: column; }
+        .overview { grid-template-columns: 1fr; }
         .recommendation { grid-template-columns: auto 1fr; }
+        .identity { align-items: flex-start; }
+        .identity-main { width: 100%; }
+        .plan-pill { max-width: 100%; }
         .onboarding { grid-template-columns: 1fr; }
         .onboarding-actions { justify-content: flex-start; }
         .next-reset { grid-column: 1 / -1; text-align: left; }
@@ -2564,9 +3118,20 @@ function dashboardHtml(webview) {
   </head>
   <body>
     <main>
+      <div class="app-shell">
+        <nav class="rail" aria-label="Codex Gestion">
+          <div class="rail-brand">
+            <strong>Codex Gestion</strong>
+            <span>v${escapeHtml(extensionContext.extension.packageJSON.version)}</span>
+          </div>
+          ${dashboardNavButton('overview', viewLabels.overview)}
+          ${dashboardNavButton('accounts', viewLabels.accounts)}
+          ${dashboardNavButton('context', viewLabels.context)}
+          ${dashboardNavButton('diagnostics', viewLabels.diagnostics)}
+        </nav>
+        <div class="content">
       <header>
         <div>
-          <span class="version">Codex Gestion v${escapeHtml(extensionContext.extension.packageJSON.version)}</span>
           <h1>${escapeHtml(t('dashboardTitle'))}</h1>
           <p class="subtitle">${escapeHtml(stateTitle)}. ${escapeHtml(stateDetail)}</p>
         </div>
@@ -2574,8 +3139,8 @@ function dashboardHtml(webview) {
           <div class="header-language">${languageSelectorHtml()}</div>
           <div class="actions">
             <button data-action="refresh">${escapeHtml(t('refresh'))}</button>
-            <button class="secondary" data-action="projectContext">${escapeHtml(t('projectContext'))}</button>
-            <button class="secondary" data-action="accounts">${escapeHtml(t('manageAccounts'))}</button>
+            <button class="secondary" data-action="setView" data-view="context">${escapeHtml(t('projectContext'))}</button>
+            <button class="secondary" data-action="openAccountsModal">${escapeHtml(t('manageAccounts'))}</button>
             <button class="secondary" data-action="openCodex">${escapeHtml(t('openCodex'))}</button>
           </div>
         </div>
@@ -2585,6 +3150,7 @@ function dashboardHtml(webview) {
       ${authNotice}
       ${panelSessionNotice}
 
+      <section class="view-panel ${dashboardView === 'overview' ? 'active' : ''}">
       ${!latestStats ? `
       <section class="onboarding">
         <div>
@@ -2598,70 +3164,51 @@ function dashboardHtml(webview) {
         </div>
       </section>` : ''}
 
-      <section class="recommendation ${escapeHtml(advice.tone)}">
-        <div class="recommendation-icon">${advice.tone === 'good' ? '&#10003;' : '!'}</div>
-        <div class="recommendation-copy">
-          <strong>${escapeHtml(advice.title)}</strong>
-          <span>${escapeHtml(advice.detail)}</span>
-        </div>
-        <div class="next-reset">
-          <span>${escapeHtml(t('nextReset'))}</span>
-          <strong>${nextReset ? escapeHtml(formatResetMoment(nextReset)) : escapeHtml(t('noData'))}</strong>
-        </div>
-      </section>
-
-      <section class="identity">
-        <div class="identity-main">
-          <div class="avatar" style="--account-color: ${escapeHtml(activeVisual.color)}; --account-bg: ${escapeHtml(activeVisual.background)}; --account-border: ${escapeHtml(activeVisual.border)};" aria-hidden="true">${escapeHtml(activeVisual.initials)}</div>
-          <div class="identity-copy">
-            <strong>${escapeHtml(accountLabel)}</strong>
-            <span>${escapeHtml(t('accountUsedByNewChats'))}</span>
+      <section class="overview">
+        <div class="overview-main">
+          <div class="overview-card summary-panel">
+            <strong data-summary-title>${escapeHtml(advice.title)}</strong>
+            <p data-summary-detail>${escapeHtml(advice.detail)}</p>
+            <div class="summary-facts">
+              <span data-summary-reset>${escapeHtml(t('nextReset'))}: ${nextReset ? escapeHtml(formatResetMoment(nextReset)) : escapeHtml(t('noData'))}</span>
+              <span data-summary-plan>${escapeHtml(t('localPlan', { label: planInfo.label }))}</span>
+              <span data-summary-context>${escapeHtml(health.items[2].label)}: ${escapeHtml(health.items[2].value)}</span>
+            </div>
+          </div>
+          <div class="metrics">
+            ${metricItems.map(item => metricCard(item.label, item.value, item.percent, item.detail, item.hint, item.tone, item.key)).join('')}
           </div>
         </div>
-        <span class="plan-pill">${escapeHtml(t('localPlan', { label: planInfo.label }))} - ${escapeHtml(planInfo.detail)}</span>
+        <div class="overview-card side-panel">
+          <section class="identity">
+            <div class="identity-main">
+              <div class="avatar" style="--account-color: ${escapeHtml(activeVisual.color)}; --account-bg: ${escapeHtml(activeVisual.background)}; --account-border: ${escapeHtml(activeVisual.border)};" aria-hidden="true">${escapeHtml(activeVisual.initials)}</div>
+              <div class="identity-copy">
+                <strong>${escapeHtml(accountLabel)}</strong>
+                <span>${escapeHtml(t('accountUsedByNewChats'))}</span>
+              </div>
+            </div>
+            <span class="plan-pill">${escapeHtml(planInfo.label)}</span>
+          </section>
+          <div class="side-stat-grid">
+            ${health.items.filter((_item, index) => index !== 2).map(item => `
+            <div class="side-stat">
+              <span>${escapeHtml(item.label)}</span>
+              <strong>${escapeHtml(item.value)}</strong>
+            </div>`).join('')}
+          </div>
+          <section class="plan-strategy">
+            <div class="plan-strategy-copy">
+              <strong>${escapeHtml(planStrategy.title)}</strong>
+              <span>${escapeHtml(planStrategy.detail)}</span>
+              <span class="plan-action">${escapeHtml(planStrategy.action)}</span>
+            </div>
+          </section>
+        </div>
+      </section>
       </section>
 
-      <section class="plan-strategy">
-        <div>
-          <strong>${escapeHtml(planStrategy.title)}</strong>
-          <span>${escapeHtml(planStrategy.detail)}</span>
-        </div>
-        <small>${escapeHtml(planStrategy.action)}</small>
-      </section>
-
-      <div class="metrics">
-        ${displayedQuotaWindows.length ? displayedQuotaWindows.map((limit, index) => {
-          const available = availablePercent(limit?.used_percent);
-          return metricCard(
-            quotaWindowTitle(limit, index),
-            available == null ? t('pending') : t('availableValue', { value: formatPercent(available) }),
-            available,
-            limit ? t('renewsFull', { time: formatResetFull(limit.resets_at) }) : t('pendingAccountData'),
-            index === 0 ? t('shortQuotaHint') : t('longQuotaHint'),
-            quotaTone(limit)
-          );
-        }).join('') : metricCard(
-          t('quotaDataPending'),
-          t('pending'),
-          null,
-          t('pendingAccountData'),
-          t('openCodexForAccountData'),
-          'accent'
-        )}
-      </div>
-
-      <h2>${escapeHtml(t('whatDataMeans'))}</h2>
-      <div class="explain-grid">
-        <div class="explain-card">
-          <strong>${escapeHtml(t('shortQuotaAvailable'))}</strong>
-          ${escapeHtml(t('shortQuotaExplanation'))}
-        </div>
-        <div class="explain-card">
-          <strong>${escapeHtml(t('longQuotaAvailable'))}</strong>
-          ${escapeHtml(t('longQuotaExplanation'))}
-        </div>
-      </div>
-
+      <section class="view-panel ${dashboardView === 'accounts' ? 'active' : ''}">
       <div class="accounts-heading">
         <div>
           <h2>${escapeHtml(t('accountManagement'))}</h2>
@@ -2680,15 +3227,47 @@ function dashboardHtml(webview) {
       <p class="footnote">
         ${escapeHtml(t('credentialsFootnote'))}
       </p>
+      </section>
+
+      <section class="view-panel ${dashboardView === 'context' ? 'active' : ''}">
+        <section class="overview-card">
+          <strong>${escapeHtml(t('projectContext'))}</strong>
+          <p>${escapeHtml(t('onboardingDetail'))}</p>
+          <div class="actions">
+            <button data-action="projectContext">${escapeHtml(t('onboardingContext'))}</button>
+            <button class="secondary" data-action="refresh">${escapeHtml(t('refresh'))}</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="view-panel ${dashboardView === 'diagnostics' ? 'active' : ''}">
+        <section class="overview-card">
+          <strong>${escapeHtml(t('technicalDiagnostics'))}</strong>
+          <pre class="diagnostics-output">${escapeHtml(buildDiagnostics())}</pre>
+        </section>
+      </section>
+
       <div class="meta-row">
-        <span>${latestStats?.isSnapshotFallback ? escapeHtml(t('savedSummary')) : escapeHtml(t('latestCodexData'))}: ${latestStats ? escapeHtml(new Date(latestStats.timestamp).toLocaleString()) : escapeHtml(t('noData'))}</span>
         <span>${escapeHtml(t('checkedByExtension'))}: ${lastRefreshAt ? escapeHtml(new Date(lastRefreshAt).toLocaleTimeString()) : escapeHtml(t('noData'))}</span>
         <span>${escapeHtml(t('activeLocalSessions'))}: ${latestStats?.activeSessions || 0}</span>
         <span>${escapeHtml(t('readCompletedIn'))}: ${lastRefreshDurationMs} ms</span>
       </div>
-      <div class="actions">
-        <button class="secondary" data-action="diagnostics">${escapeHtml(t('technicalDiagnostics'))}</button>
+        </div>
       </div>
+      <dialog id="accounts-modal">
+        <div class="dialog-head">
+          <h2>${escapeHtml(t('accountsTitle'))}</h2>
+          <button class="secondary" data-action="closeModal">${escapeHtml(t('close'))}</button>
+        </div>
+        <div class="account-manager">
+          <div class="accounts">${accountCards(activeProfileId)}</div>
+          <div class="modal-feedback">${escapeHtml(es ? 'Gestiona una cuenta desde sus botones o abre el selector avanzado.' : 'Manage an account from its buttons or open the advanced picker.')}</div>
+          <div class="actions">
+            <button data-action="addAccount">${escapeHtml(t('addAccount'))}</button>
+            <button class="secondary" data-action="accounts">${escapeHtml(es ? 'Selector avanzado' : 'Advanced picker')}</button>
+          </div>
+        </div>
+      </dialog>
     </main>
     <script nonce="${nonce}" src="${chartScriptUri}"></script>
     <script nonce="${nonce}">
@@ -2696,12 +3275,13 @@ function dashboardHtml(webview) {
       const css = getComputedStyle(document.documentElement);
       const colorFor = name => css.getPropertyValue(name).trim();
       const toneColor = tone => tone === 'danger' ? colorFor('--vscode-charts-red') : tone === 'warning' ? colorFor('--vscode-charts-orange') : colorFor('--vscode-charts-green');
-      document.querySelectorAll('[data-chart-card]').forEach(card => {
+      const chartInstances = new Map();
+      function createChart(card, animationDuration = 500) {
         const canvas = card.querySelector('canvas');
-        if (!canvas || !window.Chart) return;
+        if (!canvas || !window.Chart || card.dataset.pending === 'true') return null;
         const available = Number(card.dataset.available) || 0;
         const used = Number(card.dataset.used) || 0;
-        new Chart(canvas, {
+        const chart = new Chart(canvas, {
           type: 'doughnut',
           data: {
             labels: [${JSON.stringify(t('free'))}, ${JSON.stringify(t('used'))}],
@@ -2718,16 +3298,87 @@ function dashboardHtml(webview) {
             cutout: '72%',
             events: [],
             plugins: { legend: { display: false }, tooltip: { enabled: false } },
-            animation: { duration: 500, easing: 'easeOutQuart' }
+            animation: { duration: animationDuration, easing: 'easeOutQuart' }
           }
         });
+        chartInstances.set(card.dataset.chartKey, chart);
+        return chart;
+      }
+      document.querySelectorAll('[data-chart-card]').forEach(card => createChart(card, card.dataset.pending === 'true' ? 0 : 500));
+      function setText(selector, value) {
+        const node = document.querySelector(selector);
+        if (node) node.textContent = value;
+      }
+      function applyLivePayload(payload) {
+        if (!payload) return;
+        if (payload.summary) {
+          setText('[data-summary-title]', payload.summary.title);
+          setText('[data-summary-detail]', payload.summary.detail);
+          setText('[data-summary-reset]', ${JSON.stringify(t('nextReset'))} + ': ' + payload.summary.nextReset);
+          setText('[data-summary-plan]', payload.summary.plan);
+          setText('[data-summary-context]', payload.summary.contextLabel + ': ' + payload.summary.contextValue);
+        }
+        (payload.metrics || []).forEach(metric => {
+          const card = Array.from(document.querySelectorAll('[data-chart-card]')).find(node => node.dataset.chartKey === metric.key);
+          if (!card) return;
+          card.dataset.available = metric.available;
+          card.dataset.used = metric.used;
+          card.dataset.tone = metric.tone;
+          card.dataset.pending = metric.pending ? 'true' : 'false';
+          card.classList.remove('accent', 'warning', 'danger', 'loading');
+          card.classList.add(metric.tone);
+          if (metric.pending) card.classList.add('loading');
+          const chart = chartInstances.get(metric.key);
+          if (metric.pending) {
+            if (chart) {
+              chart.destroy();
+              chartInstances.delete(metric.key);
+            }
+          } else if (chart) {
+            const nextData = [Number(metric.available) || 0, Number(metric.used) || 0];
+            const currentData = chart.data.datasets[0].data.map(Number);
+            chart.data.datasets[0].backgroundColor = [toneColor(metric.tone), colorFor('--vscode-descriptionForeground')];
+            chart.data.datasets[0].data = nextData;
+            chart.update(currentData[0] === nextData[0] && currentData[1] === nextData[1] ? 'none' : undefined);
+          } else {
+            createChart(card, 250);
+          }
+          const center = card.querySelector('[data-chart-center]');
+          const centerLabel = card.querySelector('[data-chart-center-label]');
+          const label = card.querySelector('[data-chart-label]');
+          const value = card.querySelector('[data-chart-value]');
+          const free = card.querySelector('[data-chart-free]');
+          const used = card.querySelector('[data-chart-used]');
+          const detail = card.querySelector('[data-chart-detail]');
+          const hint = card.querySelector('[data-chart-hint]');
+          if (center) center.textContent = metric.center;
+          if (centerLabel) centerLabel.textContent = metric.centerLabel;
+          if (label) label.textContent = metric.label;
+          if (value) value.textContent = metric.value;
+          if (free) free.textContent = metric.freeText;
+          if (used) used.textContent = metric.usedText;
+          if (detail) detail.textContent = metric.detail || '';
+          if (hint) hint.textContent = metric.hint || '';
+        });
+      }
+      window.addEventListener('message', event => {
+        if (event.data?.type === 'dashboardLiveUpdate') applyLivePayload(event.data.payload);
       });
       document.addEventListener('click', event => {
         const target = event.target.closest('[data-action]');
         if (!target) return;
         if (target.tagName === 'BUTTON') event.stopPropagation();
+        if (target.dataset.action === 'openAccountsModal') {
+          document.getElementById('accounts-modal')?.showModal();
+          return;
+        }
+        if (target.dataset.action === 'closeModal') {
+          target.closest('dialog')?.close();
+          return;
+        }
         vscode.postMessage({
           action: target.dataset.action,
+          view: target.dataset.view || null,
           profileId: target.dataset.profile || null,
           language: target.dataset.language || null
         });
@@ -2763,6 +3414,40 @@ function dashboardSignature() {
     planPolicy: currentPlanPolicy,
     authState: latestAuthStatus.state,
     authMessage: latestAuthStatus.message,
+    contextSource: latestStats?.contextSource || '',
+    scheduledRefreshSeconds,
+    dashboardView,
+    language: languageTag(),
+    languageSetting: currentLanguageSetting(),
+    error: latestError?.message || '',
+    profiles
+  });
+}
+
+function dashboardShellSignature() {
+  const account = readCurrentAccount();
+  const activeProfileId = account.hasCredentials ? accountProfileId(account) : '';
+  const profiles = getAccountProfiles().map(profile => ({
+    id: profile.id,
+    label: profile.label,
+    credentialsStored: profile.credentialsStored
+  }));
+  const metricShape = dashboardMetricItems().map(item => ({
+    key: item.key,
+    label: item.label,
+    pending: !Number.isFinite(Number(item.percent))
+  }));
+  return JSON.stringify({
+    accountId: activeProfileId,
+    accountLabel: latestStats?.accountLabel || '',
+    metricShape,
+    plan: latestStats?.rateLimits?.plan_type || null,
+    planPolicy: currentPlanPolicy,
+    authState: latestAuthStatus.state,
+    authMessage: latestAuthStatus.message,
+    contextSource: latestStats?.contextSource || '',
+    scheduledRefreshSeconds,
+    dashboardView,
     language: languageTag(),
     languageSetting: currentLanguageSetting(),
     error: latestError?.message || '',
@@ -2774,8 +3459,18 @@ function updateDashboard(force = false) {
   if (!dashboardPanel) return;
   const signature = dashboardSignature();
   if (!force && signature === lastDashboardSignature) return;
+  const shellSignature = dashboardShellSignature();
+  if (!force && shellSignature === lastDashboardShellSignature) {
+    dashboardPanel.webview.postMessage({
+      type: 'dashboardLiveUpdate',
+      payload: dashboardLivePayload()
+    });
+    lastDashboardSignature = signature;
+    return;
+  }
   dashboardPanel.webview.html = dashboardHtml(dashboardPanel.webview);
   lastDashboardSignature = signature;
+  lastDashboardShellSignature = shellSignature;
 }
 
 async function showDashboard() {
@@ -2801,8 +3496,13 @@ async function showDashboard() {
   );
   dashboardPanel.webview.html = dashboardHtml(dashboardPanel.webview);
   lastDashboardSignature = dashboardSignature();
+  lastDashboardShellSignature = dashboardShellSignature();
   dashboardPanel.webview.onDidReceiveMessage(async message => {
     if (message.action === 'setLanguage') await setDashboardLanguage(message.language);
+    if (message.action === 'setView') {
+      dashboardView = ['overview', 'accounts', 'context', 'diagnostics'].includes(message.view) ? message.view : 'overview';
+      updateDashboard(true);
+    }
     if (message.action === 'refresh') await refresh(true);
     if (message.action === 'accounts') await manageAccounts();
     if (message.action === 'openCodex') await openCodex();
@@ -2819,6 +3519,7 @@ async function showDashboard() {
   dashboardPanel.onDidDispose(() => {
     dashboardPanel = null;
     lastDashboardSignature = '';
+    lastDashboardShellSignature = '';
   }, undefined, extensionContext.subscriptions);
 }
 
@@ -2906,7 +3607,15 @@ async function showDetails() {
 
 function scheduleRefresh() {
   const configuredSeconds = Number(vscode.workspace.getConfiguration('codexGestion').get('refreshIntervalSeconds', 30));
-  const seconds = effectiveRefreshIntervalSeconds(configuredSeconds, currentPlanPolicy);
+  const account = readCurrentAccount();
+  const activeSince = Number(extensionContext.globalState.get(ACTIVE_ACCOUNT_SINCE_KEY, 0)) || 0;
+  const shouldHuntQuota = account.hasCredentials &&
+    !hasQuotaReadings(latestStats) &&
+    activeSince &&
+    Date.now() - activeSince < PENDING_QUOTA_FAST_REFRESH_MS;
+  const seconds = shouldHuntQuota
+    ? Math.min(PENDING_QUOTA_REFRESH_SECONDS, effectiveRefreshIntervalSeconds(configuredSeconds, currentPlanPolicy))
+    : effectiveRefreshIntervalSeconds(configuredSeconds, currentPlanPolicy);
   if (refreshTimer && scheduledRefreshSeconds === seconds) return;
   if (refreshTimer) clearInterval(refreshTimer);
   scheduledRefreshSeconds = seconds;
@@ -3024,6 +3733,7 @@ module.exports = {
     armAccountSwitchGuard,
     availablePercent,
     buildCodexLoginCommand,
+    canAttributeStatsToActiveAccount,
     clearAuthPayload,
     clearAccountSwitchGuard,
     clearPostSwitchRefreshTimers,
@@ -3044,7 +3754,12 @@ module.exports = {
     planDisplay,
     planPolicyFrom,
     planPolicyText,
+    operationalHealth,
+    hasQuotaReadings,
     quotaWindowLabel,
+    quotaWindowHint,
+    quotaWindowExplainTitle,
+    quotaWindowExplainBody,
     quotaWindowsFromRateLimits,
     rateLimitFingerprint,
     resolveAccountTracking,
@@ -3053,6 +3768,7 @@ module.exports = {
     statsBelongsToAnotherProfile,
     summarizeAuthFailure,
     statsFromProfileSnapshot,
+    scrubDuplicatedGenericQuotaSnapshots,
     accountDisplayLabel,
     accountIdentityDetail,
     accountQuickPickItem,

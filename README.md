@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/codex-gestion-logo.png" width="112" alt="Codex Gestion logo">
+  <img src="media/codex-gestion-logo.png" width="112" alt="Codex Gestion logo">
 </p>
 
 <h1 align="center">Codex Gestion</h1>
@@ -14,14 +14,14 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-0.0.6-60a5fa?style=for-the-badge">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.0.1-60a5fa?style=for-the-badge">
   <img alt="License" src="https://img.shields.io/badge/license-source--available-4ec9b0?style=for-the-badge">
   <img alt="Privacy" src="https://img.shields.io/badge/privacy-local_only-111827?style=for-the-badge">
   <img alt="VS Code" src="https://img.shields.io/badge/VS_Code-%5E1.85-007ACC?style=for-the-badge">
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/readme-hero.png" alt="Codex Gestion hero preview">
+  <img src="media/readme-hero.png" alt="Codex Gestion hero preview">
 </p>
 
 <a id="english"></a>
@@ -30,15 +30,29 @@
 
 <p align="right"><a href="#espanol">Leer en español</a></p>
 
-Codex Gestion gives Codex power users a clean local view of usage, quota windows,
-account snapshots, and account switching inside VS Code. It is built for the
-small but very real moment where you want to know: which account am I using,
-how much quota is left, and when does it reset?
+Codex Gestion gives Codex power users a clear local view of the things
+that matter while working in VS Code: active account, local quota windows,
+reset timing, plan-aware guidance, and account switching.
+
+<p align="center">
+  <img src="media/marketplace-dashboard-focus.png" alt="Focused Codex Gestion dashboard capture for Marketplace" width="920">
+</p>
+
+### Quotas without fixed assumptions
+
+Codex plans and quota windows can change. Codex Gestion does not hard-code a
+fixed short or long duration. It reads the local Codex usage
+data available on this machine, then labels the visible windows by the data Codex
+records for the active account.
+
+That means the Marketplace page can stay accurate across Free, Plus, Pro,
+Business, Enterprise, Edu, and future plan changes: the extension shows local
+availability, reset timing, and account context when Codex has written that data.
 
 ### Why this exists
 
 Codex can be used from different accounts, surfaces, and plan tiers, and the
-official quota state is easy to lose sight of while you are deep in a coding
+useful quota state is easy to lose sight of while you are deep in a coding
 session. Codex Gestion keeps the practical signals close to your editor: local
 quota windows, reset times, the active account, and a small handoff file for
 continuing work cleanly.
@@ -49,48 +63,59 @@ continuing work cleanly.
 > SecretStorage, then renders the dashboard inside VS Code. Tokens, prompts,
 > diagnostics, and session contents are not intentionally sent to any remote server.
 
-### New in 0.0.6
-
-- In-panel language selector for Auto, Spanish, and English.
-- First-run onboarding with direct actions for Codex, accounts, and project context.
-- Release preparation script to bump, test, package, and validate VSIX builds safely.
-- Smarter project handoff context for continuing work in another chat or account.
-- Project context now includes detected project identity, Git status, recent commits, ROADMAP-driven next steps, and local decision signals.
-- Optional local Codex session excerpts in `.codex-gestion/PROJECT_CONTEXT.md` through `codexGestion.projectContext.includeSessionExcerpts`.
-- Project context explains that Codex reads `AGENTS.md` automatically, while `.codex-gestion/PROJECT_CONTEXT.md` should be opened, pasted, or referenced for handoff.
-- Account cards now use local color accents, initials, visible aliases, and secondary email/plan details.
-- Compact status bar now shows available quota plus the real time left to reset.
-- Status tooltip now summarizes each quota with available percent, reset timing, and used percent.
-- Logo PNG now has transparent rounded corners for Marketplace and VS Code views.
-- Reset times no longer show stale `in now` / `dentro de now` text.
-
-### Preview
-
-| Dashboard | Status tooltip |
-| --- | --- |
-| <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/readme-dashboard.png" alt="Dashboard preview"> | <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/readme-tooltip.png" alt="Tooltip preview"> |
-
 ### Marketplace screenshots
 
-| English dashboard | Spanish dashboard |
-| --- | --- |
-| <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/marketplace-dashboard-en.png" alt="Codex Gestion dashboard in English dark mode"> | <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/marketplace-dashboard-es.png" alt="Panel de Codex Gestion en espanol y modo oscuro"> |
+The screenshots are generated from the same product surface the extension uses: local quota windows, account cards, status tooltip, and local project handoff. No hidden Codex commands or private chat UI are shown.
 
-| Focused dashboard capture |
-| --- |
-| <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/marketplace-dashboard-focus.png" alt="Focused Codex Gestion dashboard capture for Marketplace"> |
+**English dashboard**
+
+<p align="center">
+  <img src="media/marketplace-dashboard-en.png" alt="Codex Gestion dashboard in English dark mode" width="860">
+</p>
+
+**Spanish accounts and saved quota state**
+
+<p align="center">
+  <img src="media/marketplace-dashboard-es.png" alt="Panel de Codex Gestion en espanol y modo oscuro" width="860">
+</p>
+
+**Status bar tooltip**
+
+<p align="center">
+  <img src="media/marketplace-status-tooltip.png" alt="Codex Gestion status bar tooltip in the VS Code corner" width="860">
+</p>
 
 ### Highlights
 
 | Area | What it does |
 | --- | --- |
-| Quotas | Shows primary and secondary Codex quota windows when Codex records them locally. |
-| Dashboard | Opens a polished Chart.js dashboard with availability gauges and reset times. |
+| Quotas | Shows the Codex quota windows recorded locally for the active plan, without assuming fixed durations. |
+| Dashboard | Opens a focused Chart.js dashboard with availability gauges and reset times. |
+| Health checks | Summarizes local session, quota, context, credentials, and refresh status before long work. |
 | Status bar | Adds a compact status-bar summary and visual tooltip for quick checks. |
 | Accounts | Stores local account credentials in VS Code SecretStorage and lets you switch accounts. |
 | Switching | Reloads VS Code automatically after a successful switch and guards against Codex restoring the previous account. |
 | Handoff | Maintains a local project context file at `.codex-gestion/PROJECT_CONTEXT.md`, with optional sanitized session excerpts for account/chat handoff. |
 | Diagnostics | Generates sanitized troubleshooting output without tokens or full chat contents. |
+
+### Fixed in 1.0.1
+
+- Status-bar tooltip actions are clickable again: Overview opens the panel and Refresh reads local usage immediately.
+- The tooltip keeps the new vertical visual layout without letting VS Code reflow quota cards into columns.
+
+### New in 1.0.0
+
+- Redesigned dashboard with focused Overview, Accounts, Context, and Diagnostics sections.
+- Account-aware quota snapshots keep the active account live, preserve saved readings for inactive accounts, and show pending only when Codex has not written a quota for that account yet.
+- Dynamic quota windows follow the local data Codex records instead of assuming fixed durations.
+- Faster post-switch polling picks up new quota readings shortly after Codex writes them.
+- Status-bar hover now uses compact visual quota cards with direct panel and refresh actions.
+- Sanitized diagnostics include local health signals without exposing tokens, account IDs, file paths, or chat contents.
+- Marketplace screenshots and copy have been refreshed for the 1.0.0 release.
+
+### Since the public 0.0.6 release
+
+1.0.0 is the next public milestone after 0.0.6. It consolidates the dashboard redesign, multi-account quota reliability, smoother quota refresh, status-bar hover redesign, diagnostics improvements, and updated Marketplace assets into one stable release.
 
 ### Privacy-first by design
 
@@ -127,7 +152,7 @@ Codex Gestion
 From a local VSIX package:
 
 ```powershell
-code --install-extension .\dist\codex-gestion-0.0.6.vsix --force
+code --install-extension .\dist\codex-gestion-1.0.1.vsix --force
 ```
 
 ### Commands
@@ -184,15 +209,30 @@ permission. See `LICENSE`.
 
 <p align="right"><a href="#english">Read in English</a></p>
 
-Codex Gestion ofrece a usuarios intensivos de Codex una vista local y clara de
-uso, ventanas de cuota, cuentas detectadas y cambio de cuenta dentro de VS Code.
-Esta pensada para ese momento concreto en el que quieres saber: que cuenta estoy
-usando, cuanta cuota queda y cuando se renueva?
+Codex Gestion ofrece una vista local y clara de lo importante mientras
+trabajas con Codex en VS Code: cuenta activa, ventanas de cuota locales,
+hora de renovacion, avisos segun plan y cambio de cuenta.
+
+<p align="center">
+  <img src="media/marketplace-dashboard-focus.png" alt="Captura enfocada del dashboard de Codex Gestion para Marketplace" width="920">
+</p>
+
+### Cuotas sin asumir ventanas fijas
+
+Los planes y ventanas de cuota de Codex pueden cambiar. Codex Gestion no fija en
+el codigo una ventana concreta como cinco horas o siete dias. Lee los datos
+locales de uso que Codex haya escrito en esta maquina y etiqueta las ventanas
+visibles segun lo que exista para la cuenta activa.
+
+Asi la pagina de Marketplace sigue siendo honesta para Free, Plus, Pro,
+Business, Enterprise, Edu y futuros cambios de plan: la extension muestra
+disponibilidad local, hora de renovacion y contexto de cuenta cuando Codex ha
+guardado esos datos.
 
 ### Por que existe
 
 Codex puede usarse desde varias cuentas, superficies y tipos de plan, y es facil
-perder de vista el estado real de cuota cuando estas metido en una sesion de
+perder de vista el estado util de cuota cuando estas metido en una sesion de
 codigo. Codex Gestion acerca esas senales practicas al editor: ventanas de cuota
 locales, horas de renovacion, cuenta activa y un pequeno archivo de traspaso para
 continuar el trabajo limpiamente.
@@ -204,48 +244,57 @@ continuar el trabajo limpiamente.
 > intencionadamente tokens, prompts, diagnosticos ni contenido de sesiones a
 > ningun servidor remoto.
 
-### Nuevo en 0.0.6
-
-- Selector de idioma dentro del panel para Auto, espanol e ingles.
-- Onboarding inicial con acciones directas para Codex, cuentas y contexto del proyecto.
-- Script de preparacion de release para subir version, probar, empaquetar y validar VSIX de forma segura.
-- Contexto de traspaso mas inteligente para continuar el trabajo en otro chat o cuenta.
-- El contexto del proyecto ahora incluye identidad detectada del proyecto, estado Git, commits recientes, proximos pasos desde ROADMAP y senales de decisiones locales.
-- Extractos opcionales de sesiones locales de Codex en `.codex-gestion/PROJECT_CONTEXT.md` mediante `codexGestion.projectContext.includeSessionExcerpts`.
-- El contexto explica que Codex lee `AGENTS.md` automaticamente, mientras `.codex-gestion/PROJECT_CONTEXT.md` debe abrirse, pegarse o referenciarse para traspasos.
-- Las tarjetas de cuenta ahora usan color local, iniciales, alias visible y email/plan como detalle secundario.
-- La barra compacta ahora muestra la cuota disponible y el tiempo real que falta para renovar.
-- El tooltip de estado ahora resume cada cuota con porcentaje disponible, renovacion y porcentaje usado.
-- El PNG del logo ahora tiene esquinas redondeadas transparentes para Marketplace y VS Code.
-- Las renovaciones antiguas ya no muestran textos confusos como `in now` / `dentro de now`.
-
-### Vista previa
-
-| Panel visual | Tooltip de estado |
-| --- | --- |
-| <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/readme-dashboard.png" alt="Vista previa del panel"> | <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/readme-tooltip.png" alt="Vista previa del tooltip"> |
-
 ### Capturas para Marketplace
 
-| Panel en ingles | Panel en espanol |
-| --- | --- |
-| <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/marketplace-dashboard-en.png" alt="Panel de Codex Gestion en ingles y modo oscuro"> | <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/marketplace-dashboard-es.png" alt="Panel de Codex Gestion en espanol y modo oscuro"> |
+**Panel en ingles**
 
-| Captura enfocada del dashboard |
-| --- |
-| <img src="https://raw.githubusercontent.com/Jacom15/codex-gestion/main/media/marketplace-dashboard-focus.png" alt="Captura enfocada del dashboard de Codex Gestion para Marketplace"> |
+<p align="center">
+  <img src="media/marketplace-dashboard-en.png" alt="Panel de Codex Gestion en ingles y modo oscuro" width="860">
+</p>
+
+**Cuentas en espanol y ultima cuota guardada**
+
+<p align="center">
+  <img src="media/marketplace-dashboard-es.png" alt="Panel de Codex Gestion en espanol y modo oscuro" width="860">
+</p>
+
+**Tooltip de barra de estado**
+
+<p align="center">
+  <img src="media/marketplace-status-tooltip.png" alt="Tooltip de Codex Gestion en la esquina de VS Code" width="860">
+</p>
 
 ### Caracteristicas
 
 | Area | Que hace |
 | --- | --- |
-| Cuotas | Muestra las ventanas de cuota principal y secundaria cuando Codex las registra localmente. |
-| Panel visual | Abre un panel Chart.js cuidado con graficas de disponibilidad y horas de renovacion. |
+| Cuotas | Muestra las ventanas de cuota registradas localmente para el plan activo, sin asumir duraciones fijas. |
+| Panel visual | Abre un dashboard Chart.js enfocado con graficas de disponibilidad y horas de renovacion. |
+| Salud operativa | Resume sesion local, cuotas, contexto, credenciales y refresco antes de trabajos largos. |
 | Barra de estado | Anade un resumen compacto y un tooltip visual para consultas rapidas. |
 | Cuentas | Guarda credenciales locales en VS Code SecretStorage y permite cambiar entre cuentas. |
 | Cambio de cuenta | Recarga VS Code automaticamente tras un cambio correcto y evita que Codex restaure la cuenta anterior. |
 | Traspaso | Mantiene un archivo local de contexto en `.codex-gestion/PROJECT_CONTEXT.md`, con extractos saneados opcionales para cambiar de cuenta o chat. |
 | Diagnostico | Genera informacion de ayuda saneada, sin tokens ni contenido completo de chats. |
+
+### Corregido en 1.0.1
+
+- Las acciones del tooltip de la barra de estado vuelven a ser clicables: Resumen abre el panel y Actualizar lee el uso local al momento.
+- El tooltip mantiene el nuevo diseno visual vertical sin que VS Code reorganice las cuotas en columnas.
+
+### Nuevo en 1.0.0
+
+- Panel redisenado con secciones enfocadas de Resumen, Cuentas, Contexto y Diagnostico.
+- Snapshots de cuota por cuenta: la cuenta activa muestra lectura en vivo, las inactivas conservan su ultima lectura guardada y solo aparece pendiente cuando Codex aun no ha escrito cuota para esa cuenta.
+- Ventanas de cuota dinamicas basadas en los datos locales que escribe Codex, sin asumir duraciones fijas.
+- Refresco rapido tras cambiar de cuenta para recoger antes las nuevas cuotas cuando Codex las escriba.
+- Tooltip de barra de estado con tarjetas visuales compactas y acciones directas para abrir el panel o actualizar.
+- Diagnostico saneado con senales de salud local, sin exponer tokens, IDs de cuenta, rutas ni contenido de chats.
+- Capturas y textos de Marketplace actualizados para la version 1.0.0.
+
+### Desde la version publica 0.0.6
+
+1.0.0 es el siguiente hito publico despues de 0.0.6. Reune el rediseno del panel, la fiabilidad multi-cuenta de cuotas, el refresco mas suave, el nuevo tooltip de barra de estado, las mejoras de diagnostico y los assets de Marketplace actualizados en una version estable.
 
 ### Privacidad primero
 
@@ -281,7 +330,7 @@ Codex Gestion
 Desde un paquete VSIX local:
 
 ```powershell
-code --install-extension .\dist\codex-gestion-0.0.6.vsix --force
+code --install-extension .\dist\codex-gestion-1.0.1.vsix --force
 ```
 
 ### Comandos
@@ -329,3 +378,9 @@ Codex Gestion es source-available. Puedes instalar y usar la extension oficial,
 y revisar el codigo por transparencia, pero no esta permitido copiar, modificar,
 redistribuir, reempaquetar ni publicar extensiones derivadas sin permiso escrito.
 Consulta `LICENSE`.
+
+
+
+
+
+

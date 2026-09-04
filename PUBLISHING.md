@@ -55,7 +55,7 @@ npx vsce login your-publisher-id
 Recommended release prep command:
 
 ```powershell
-npm run release:prepare -- -Version 0.0.7 -Notes "Added account diagnostics", "Fixed stale quota labels"
+npm run release:prepare -- -Version <version> -Notes "Added account diagnostics", "Fixed stale quota labels"
 ```
 
 This command updates `package.json`, `package-lock.json`, README/INSTALL/PUBLISHING VSIX references, and `CHANGELOG.md` when needed. It then runs tests, creates the VSIX, validates that the expected file exists, and prints the final path.
@@ -63,7 +63,7 @@ This command updates `package.json`, `package-lock.json`, README/INSTALL/PUBLISH
 For a dry run without packaging, use:
 
 ```powershell
-npm run release:prepare -- -Version 0.0.7 -SkipPackage
+npm run release:prepare -- -Version <version> -SkipPackage
 ```
 
 Manual fallback:
@@ -76,7 +76,7 @@ npm run package
 Inspect the VSIX contents:
 
 ```powershell
-tar -tf .\dist\codex-gestion-0.0.6.vsix
+tar -tf .\dist\codex-gestion-1.0.1.vsix
 ```
 
 Confirm the package includes:
@@ -130,7 +130,7 @@ npm run publish:marketplace
 - Open the Marketplace listing and verify the README formatting.
 - Install it from Marketplace in a clean VS Code profile.
 - Test: refresh, dashboard, account switch, project context, diagnostics.
-- Add screenshots or GIFs to the README if the listing feels too plain.
+- Add clearer screenshots to the README if the listing feels too plain.
 
 ## 7. Donations
 
@@ -146,3 +146,9 @@ Common options:
 - Stripe Payment Link
 
 If the repository is on GitHub, configure `.github/FUNDING.yml` too.
+
+
+
+
+
+

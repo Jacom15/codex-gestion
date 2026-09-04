@@ -1,0 +1,2108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Codex Gestion Preview</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --vscode-foreground: #cccccc;
+      --vscode-descriptionForeground: #9da3ad;
+      --vscode-editor-background: #1e1e1e;
+      --vscode-editorWidget-background: #252526;
+      --vscode-widget-border: #3c3c3c;
+      --vscode-widget-shadow: rgba(0, 0, 0, .28);
+      --vscode-button-background: #0e639c;
+      --vscode-button-foreground: #ffffff;
+      --vscode-button-hoverBackground: #1177bb;
+      --vscode-button-secondaryBackground: #3a3d41;
+      --vscode-button-secondaryForeground: #ffffff;
+      --vscode-button-secondaryHoverBackground: #45494e;
+      --vscode-toolbar-hoverBackground: #2a2d2e;
+      --vscode-focusBorder: #007fd4;
+      --vscode-badge-background: #4d4d4d;
+      --vscode-badge-foreground: #ffffff;
+      --vscode-charts-green: #4ec9b0;
+      --vscode-charts-orange: #d7ba7d;
+      --vscode-charts-red: #f48771;
+      --vscode-textLink-foreground: #4fc1ff;
+      --vscode-textBlockQuote-background: #2b2b2b;
+      --vscode-inputValidation-errorBorder: #f48771;
+      --vscode-inputValidation-warningBorder: #d7ba7d;
+      --account-color: #60a5fa;
+      --account-bg: rgba(96, 165, 250, .16);
+      --account-border: rgba(96, 165, 250, .55);
+    }
+    [data-theme="light"] {
+      color-scheme: light;
+      --vscode-foreground: #1f2328;
+      --vscode-descriptionForeground: #5c6672;
+      --vscode-editor-background: #f6f8fa;
+      --vscode-editorWidget-background: #ffffff;
+      --vscode-widget-border: #d0d7de;
+      --vscode-widget-shadow: rgba(31, 35, 40, .12);
+      --vscode-button-background: #0969da;
+      --vscode-button-hoverBackground: #0759ba;
+      --vscode-button-secondaryBackground: #f3f4f6;
+      --vscode-button-secondaryForeground: #24292f;
+      --vscode-button-secondaryHoverBackground: #eaeef2;
+      --vscode-toolbar-hoverBackground: #eaeef2;
+      --vscode-badge-background: #57606a;
+      --vscode-textBlockQuote-background: #eef2f6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 28px;
+      color: var(--vscode-foreground);
+      background: var(--vscode-editor-background);
+      font-family: "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+    }
+    main { max-width: 1120px; margin: 0 auto; }
+    .app-shell {
+      display: grid;
+      grid-template-columns: 176px minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+    .rail {
+      position: sticky;
+      top: 18px;
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 10px;
+      background: var(--vscode-editorWidget-background);
+    }
+    .rail-brand {
+      display: grid;
+      gap: 2px;
+      padding: 6px 6px 10px;
+      border-bottom: 1px solid var(--vscode-widget-border);
+      margin-bottom: 4px;
+    }
+    .rail-brand strong { font-size: 13px; }
+    .rail-brand span { color: var(--vscode-descriptionForeground); font-size: 11px; }
+    .nav-button {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 9px;
+      width: 100%;
+      min-height: 34px;
+      padding: 8px 9px;
+      color: var(--vscode-descriptionForeground);
+      background: transparent;
+      border-color: transparent;
+      text-align: left;
+    }
+    .nav-button:hover,
+    .nav-button.active {
+      color: var(--vscode-foreground);
+      background: var(--vscode-toolbar-hoverBackground);
+    }
+    .nav-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: .72;
+    }
+    .content { min-width: 0; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: flex-start;
+      margin-bottom: 18px;
+    }
+    h1, h2, p { margin-top: 0; }
+    h1 { font-size: 34px; margin-bottom: 8px; font-weight: 750; }
+    h2 { font-size: 17px; margin: 30px 0 12px; }
+    .subtitle, .metric-detail, .metric-hint, .account-card span, small { color: var(--vscode-descriptionForeground); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .header-controls { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+    .preview-controls { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .capture-mode .preview-controls [data-scenario],
+    .capture-mode .preview-controls [data-theme-toggle] {
+      display: none;
+    }
+    .capture-mode .nav-button[data-view="marketplace"] {
+      display: none;
+    }
+    .capture-mode .activity-panel {
+      display: none;
+    }
+    .view-panel { display: none; }
+    .view-panel.active { display: block; }
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 20;
+      max-width: 360px;
+      padding: 12px 14px;
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 8px;
+      color: var(--vscode-foreground);
+      background: var(--vscode-editorWidget-background);
+      box-shadow: 0 10px 30px var(--vscode-widget-shadow);
+      opacity: 0;
+      transform: translateY(8px);
+      pointer-events: none;
+      transition: opacity .16s ease, transform .16s ease;
+    }
+    .toast.visible { opacity: 1; transform: translateY(0); }
+    .status-preview {
+      position: fixed;
+      right: 14px;
+      bottom: 10px;
+      z-index: 15;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 28px;
+      padding: 4px 9px;
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 8px;
+      color: var(--vscode-foreground);
+      background: var(--vscode-editorWidget-background);
+      box-shadow: 0 8px 24px var(--vscode-widget-shadow);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .status-preview:hover .status-tooltip,
+    .status-preview:focus-within .status-tooltip,
+    .show-status-tooltip .status-tooltip {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--vscode-charts-green);
+    }
+    .status-tooltip {
+      position: absolute;
+      right: 0;
+      bottom: calc(100% + 8px);
+      width: 330px;
+      max-width: calc(100vw - 28px);
+      padding: 12px;
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 10px;
+      color: var(--vscode-foreground);
+      background: var(--vscode-editorWidget-background);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, .42);
+      opacity: 0;
+      transform: translateY(6px);
+      pointer-events: none;
+      transition: opacity .14s ease, transform .14s ease;
+    }
+    .status-tooltip-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 9px;
+      border-bottom: 1px solid var(--vscode-widget-border);
+      margin-bottom: 9px;
+    }
+    .status-tooltip-head strong,
+    .status-tooltip-head span {
+      display: block;
+    }
+    .status-tooltip-head span {
+      margin-top: 3px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .status-version {
+      padding: 3px 7px;
+      border-radius: 999px;
+      color: var(--vscode-descriptionForeground);
+      background: var(--vscode-toolbar-hoverBackground);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .tooltip-actions {
+      display: flex;
+      gap: 7px;
+      margin-bottom: 12px;
+    }
+    .tooltip-actions button {
+      min-height: 28px;
+      padding: 4px 9px;
+      color: var(--vscode-button-secondaryForeground);
+      background: var(--vscode-button-secondaryBackground);
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 7px;
+      font-size: 12px;
+    }
+    .tooltip-actions button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    .tooltip-quota {
+      display: grid;
+      gap: 6px;
+      padding: 9px 0;
+      border-top: 1px solid var(--vscode-widget-border);
+    }
+    .tooltip-quota:first-of-type { border-top: 0; }
+    .tooltip-quota-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px;
+    }
+    .tooltip-quota-title span {
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .tooltip-bar {
+      height: 10px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: var(--vscode-toolbar-hoverBackground);
+    }
+    .tooltip-bar span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--vscode-charts-green);
+    }
+    .tooltip-quota-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .tooltip-quota-meta strong {
+      color: var(--vscode-foreground);
+      font-size: 13px;
+    }
+    .tooltip-footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding-top: 9px;
+      border-top: 1px solid var(--vscode-widget-border);
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .version {
+      display: inline-block;
+      margin-bottom: 8px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    button {
+      min-height: 36px;
+      border: 1px solid var(--vscode-button-border, transparent);
+      border-radius: 8px;
+      padding: 9px 14px;
+      color: var(--vscode-button-foreground);
+      background: var(--vscode-button-background);
+      cursor: pointer;
+      font: inherit;
+    }
+    button:hover { background: var(--vscode-button-hoverBackground); }
+    button.secondary {
+      color: var(--vscode-button-secondaryForeground);
+      background: var(--vscode-button-secondaryBackground);
+    }
+    button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
+    button.active { box-shadow: inset 0 0 0 2px var(--vscode-focusBorder); }
+    .language-selector {
+      display: inline-flex;
+      gap: 2px;
+      padding: 2px;
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 8px;
+    }
+    .language-selector button {
+      min-width: 34px;
+      min-height: 28px;
+      padding: 5px 7px;
+      border-color: transparent;
+      border-radius: 6px;
+      color: var(--vscode-descriptionForeground);
+      background: transparent;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .surface, .metric-card, .account-card, .notice {
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 10px;
+      background: var(--vscode-editorWidget-background);
+      box-shadow: 0 6px 18px var(--vscode-widget-shadow);
+    }
+    .notice { padding: 13px 15px; margin-bottom: 14px; }
+    .notice strong { display: block; margin-bottom: 5px; }
+    .warning-notice { border-color: var(--vscode-inputValidation-warningBorder); }
+    .onboarding {
+      display: none;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: center;
+      padding: 18px;
+      margin-bottom: 16px;
+      border-color: var(--vscode-focusBorder);
+    }
+    .empty-state .onboarding { display: grid; }
+    .overview {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(360px, 390px);
+      gap: 14px;
+      align-items: start;
+      margin-bottom: 16px;
+    }
+    .overview-main {
+      display: grid;
+      gap: 14px;
+      min-width: 0;
+    }
+    .overview-main .metrics { grid-template-columns: minmax(0, 1fr); }
+    .live-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 310px;
+      gap: 14px;
+      align-items: start;
+    }
+    .summary-panel {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      align-items: start;
+      padding: 14px 16px;
+      min-height: 0;
+    }
+    .summary-ring {
+      width: 98px;
+      height: 98px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: conic-gradient(var(--vscode-charts-green) 0 65%, #4b5563 65% 100%);
+    }
+    .summary-ring div {
+      width: 72px;
+      height: 72px;
+      display: grid;
+      place-items: center;
+      align-content: center;
+      border-radius: 50%;
+      background: var(--vscode-editorWidget-background);
+      border: 1px solid var(--vscode-widget-border);
+    }
+    .summary-ring strong { font-size: 26px; line-height: 1; }
+    .summary-ring span { font-size: 10px; font-weight: 800; color: var(--vscode-descriptionForeground); text-transform: uppercase; }
+    .summary-copy { min-width: 0; }
+    .summary-copy strong { display: block; font-size: 18px; margin-bottom: 5px; }
+    .summary-copy p { max-width: 560px; margin: 0 0 10px; color: var(--vscode-descriptionForeground); line-height: 1.35; }
+    .summary-facts { display: flex; flex-wrap: wrap; gap: 6px; }
+    .summary-facts span {
+      padding: 4px 7px;
+      border-radius: 999px;
+      background: var(--vscode-toolbar-hoverBackground);
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .side-panel {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+    }
+    .side-stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+    }
+    .side-stat {
+      min-width: 0;
+      padding: 10px;
+      border-radius: 8px;
+      background: var(--vscode-editor-background);
+    }
+    .side-stat span,
+    .side-stat strong {
+      display: block;
+    }
+    .side-stat span {
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .side-stat strong {
+      margin-top: 5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 14px;
+    }
+    .recommendation {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 12px;
+      padding: 0;
+      margin-bottom: 0;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+    .recommendation-icon {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #fff;
+      background: var(--vscode-charts-green);
+      font-size: 19px;
+      font-weight: 800;
+    }
+    .recommendation.warning .recommendation-icon { background: var(--vscode-charts-orange); color: #1e1e1e; }
+    .recommendation.danger .recommendation-icon { background: var(--vscode-charts-red); color: #1e1e1e; }
+    .recommendation-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .next-reset { text-align: left; white-space: nowrap; }
+    .next-reset strong, .next-reset span { display: block; }
+    .identity {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      padding: 0 0 12px;
+      margin-bottom: 0;
+      border-bottom: 1px solid var(--vscode-widget-border);
+    }
+    .identity-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .avatar, .account-avatar {
+      width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      border: 1px solid var(--account-border);
+      color: var(--account-color);
+      background: var(--account-bg);
+      font-weight: 800;
+    }
+    .identity-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .identity-copy strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 15px;
+    }
+    .identity-copy span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 12px;
+    }
+    .plan-pill {
+      flex: 0 0 auto;
+      max-width: 42%;
+      overflow: hidden;
+      padding: 5px 9px;
+      border-radius: 999px;
+      color: var(--vscode-badge-foreground);
+      background: var(--vscode-badge-background);
+      font-size: 12px;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .plan-strategy {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      padding: 12px;
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 8px;
+      background: var(--vscode-editor-background);
+      margin-bottom: 0;
+    }
+    .plan-strategy::before {
+      content: "";
+      width: 9px;
+      height: 9px;
+      margin-top: 5px;
+      border-radius: 50%;
+      background: var(--vscode-charts-green);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--vscode-charts-green) 18%, transparent);
+    }
+    .plan-strategy-copy { min-width: 0; }
+    .plan-strategy strong, .plan-strategy span { display: block; }
+    .plan-strategy strong {
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+    .plan-strategy span {
+      color: var(--vscode-descriptionForeground);
+      line-height: 1.35;
+    }
+    .plan-action {
+      display: inline-block !important;
+      width: fit-content;
+      max-width: 100%;
+      margin-top: 9px;
+      padding: 4px 7px;
+      border-radius: 6px;
+      color: var(--vscode-foreground) !important;
+      background: var(--vscode-toolbar-hoverBackground);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+    .health-strip {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(100px, 1fr));
+      gap: 8px;
+      align-items: stretch;
+      padding: 0;
+      margin: 0 0 16px;
+    }
+    .health-intro { display: none; }
+    .health-item {
+      min-width: 0;
+      padding: 11px 12px;
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 8px;
+      background: var(--vscode-editor-background);
+    }
+    .health-item span {
+      display: block;
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .health-item strong {
+      display: block;
+      margin-top: 5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+    .health-item.good { border-color: var(--vscode-charts-green); }
+    .health-item.warning { border-color: var(--vscode-charts-orange); }
+    .health-item.danger { border-color: var(--vscode-charts-red); }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 14px;
+    }
+    .activity-panel {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+    }
+    .activity-panel h2 { margin: 0; }
+    .activity-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .activity-item {
+      display: grid;
+      grid-template-columns: 8px 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 9px;
+      border-radius: 8px;
+      background: var(--vscode-editor-background);
+    }
+    .activity-item i {
+      width: 8px;
+      height: 8px;
+      margin-top: 5px;
+      border-radius: 50%;
+      background: var(--vscode-charts-green);
+    }
+    .activity-item.warning i { background: var(--vscode-charts-orange); }
+    .activity-item.danger i { background: var(--vscode-charts-red); }
+    .activity-item strong,
+    .activity-item span {
+      display: block;
+    }
+    .activity-item span {
+      margin-top: 2px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+    }
+    .workspace-panel {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(260px, .75fr);
+      gap: 14px;
+    }
+    .context-card {
+      padding: 16px;
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 10px;
+      background: var(--vscode-editorWidget-background);
+    }
+    .context-card h2 { margin-top: 0; }
+    .metric-card {
+      min-height: 236px;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 148px 1fr;
+      gap: 20px;
+      align-items: center;
+    }
+    .metric-chart-wrap { position: relative; width: 148px; height: 148px; }
+    .metric-chart { width: 148px !important; height: 148px !important; }
+    .metric-card.loading .metric-chart { opacity: 0; }
+    .metric-card.loading .metric-chart-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 6px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle, transparent 58%, var(--vscode-descriptionForeground) 59% 64%, transparent 65%),
+        conic-gradient(from 90deg, var(--vscode-descriptionForeground) 0 20%, transparent 20% 35%, var(--vscode-descriptionForeground) 35% 55%, transparent 55% 70%, var(--vscode-descriptionForeground) 70% 88%, transparent 88% 100%);
+      opacity: .32;
+    }
+    .metric-card.loading .quota-legend { display: none; }
+    .metric-center {
+      position: absolute;
+      inset: 30px;
+      display: grid;
+      place-items: center;
+      align-content: center;
+      border-radius: 50%;
+      background: var(--vscode-editor-background);
+      border: 1px solid var(--vscode-widget-border);
+    }
+    .metric-center strong { font-size: 32px; line-height: 1; }
+    .metric-center span { margin-top: 4px; color: var(--vscode-descriptionForeground); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .metric-copy { min-width: 0; display: flex; flex-direction: column; gap: 9px; }
+    .metric-value { font-size: 26px; }
+    .metric-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .metric-label { font-weight: 700; color: var(--vscode-descriptionForeground); }
+    .quota-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; color: var(--vscode-descriptionForeground); font-size: 12px; }
+    .quota-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .legend-dot.free { background: var(--vscode-charts-green); }
+    .warning .legend-dot.free { background: var(--vscode-charts-orange); }
+    .danger .legend-dot.free { background: var(--vscode-charts-red); }
+    .legend-dot.used { background: var(--vscode-descriptionForeground); opacity: .38; }
+    .metric-detail, .metric-hint { line-height: 1.4; }
+    .metric-hint { margin-top: auto; }
+    .explain-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+    .explain-card { padding: 15px 16px; border-left: 3px solid var(--vscode-textLink-foreground); background: var(--vscode-textBlockQuote-background); border-radius: 8px; }
+    .explain-card strong { display: block; margin-bottom: 5px; }
+    .accounts-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 32px; }
+    .accounts-heading h2 { margin: 0; }
+    .accounts { display: grid; gap: 9px; }
+    .account-card { padding: 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px 22px; align-items: center; }
+    .account-card.active { border-color: var(--account-color); }
+    .account-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .account-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+    .account-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .account-detail, .account-plan { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .account-usage { display: flex; gap: 22px; font-variant-numeric: tabular-nums; }
+    .account-usage small, .account-usage strong { display: block; }
+    .account-usage.pending strong { color: var(--vscode-descriptionForeground); }
+    .account-source {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .account-source strong { color: var(--vscode-foreground); }
+    .quota-note {
+      margin: 12px 0 0;
+      padding: 10px 12px;
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 8px;
+      color: var(--vscode-descriptionForeground);
+      background: var(--vscode-textBlockQuote-background);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .account-actions { display: flex; justify-content: flex-end; gap: 7px; }
+    .badge { padding: 2px 7px; border-radius: 999px; color: var(--vscode-badge-foreground) !important; background: var(--vscode-badge-background); font-size: 11px; }
+    .badge.muted { color: var(--vscode-descriptionForeground) !important; background: var(--vscode-toolbar-hoverBackground); }
+    .marketplace-page {
+      display: grid;
+      gap: 22px;
+      padding-bottom: 34px;
+    }
+    .marketplace-hero {
+      display: grid;
+      grid-template-columns: 96px minmax(0, 1fr);
+      gap: 18px;
+      align-items: center;
+      padding: 22px;
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 10px;
+      background: var(--vscode-editorWidget-background);
+      box-shadow: 0 18px 42px var(--vscode-widget-shadow);
+    }
+    .marketplace-logo {
+      width: 80px;
+      height: 80px;
+      border-radius: 18px;
+    }
+    .marketplace-hero h2 {
+      margin: 0 0 6px;
+      font-size: 30px;
+    }
+    .marketplace-hero p {
+      margin: 0;
+      max-width: 680px;
+      color: var(--vscode-descriptionForeground);
+      line-height: 1.5;
+    }
+    .marketplace-badges,
+    .marketplace-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .marketplace-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      color: var(--vscode-foreground);
+      background: var(--vscode-toolbar-hoverBackground);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .marketplace-shot {
+      width: 100%;
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 10px;
+      background: var(--vscode-editorWidget-background);
+      box-shadow: 0 16px 38px var(--vscode-widget-shadow);
+    }
+    .marketplace-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .marketplace-grid.three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .marketplace-section {
+      display: grid;
+      gap: 12px;
+    }
+    .marketplace-section h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+    .feature-list {
+      display: grid;
+      gap: 9px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .feature-list li {
+      display: grid;
+      grid-template-columns: 10px minmax(0, 1fr);
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 8px;
+      background: var(--vscode-editorWidget-background);
+      line-height: 1.45;
+    }
+    .feature-list li::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      margin-top: 6px;
+      border-radius: 50%;
+      background: var(--vscode-charts-green);
+    }
+    .marketplace-copy {
+      color: var(--vscode-descriptionForeground);
+      line-height: 1.55;
+    }
+    button.small { min-height: 30px; padding: 6px 10px; font-size: 12px; }
+    button.danger-button { color: var(--vscode-charts-red); background: transparent; border-color: var(--vscode-inputValidation-errorBorder); }
+    .footnote { margin-top: 24px; font-size: 12px; color: var(--vscode-descriptionForeground); }
+    .meta-row { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 18px; color: var(--vscode-descriptionForeground); font-size: 12px; }
+    dialog {
+      width: min(720px, calc(100vw - 32px));
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 10px;
+      color: var(--vscode-foreground);
+      background: var(--vscode-editorWidget-background);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, .45);
+    }
+    dialog::backdrop { background: rgba(0, 0, 0, .55); }
+    .dialog-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .dialog-head h2 { margin: 0; }
+    .diagnostics-output {
+      max-height: 360px;
+      overflow: auto;
+      padding: 12px;
+      border-radius: 8px;
+      color: var(--vscode-descriptionForeground);
+      background: var(--vscode-editor-background);
+      font: 12px/1.5 Consolas, monospace;
+      white-space: pre-wrap;
+    }
+    .context-preview {
+      display: grid;
+      gap: 10px;
+      margin: 0;
+      padding-left: 18px;
+      color: var(--vscode-descriptionForeground);
+    }
+    .account-manager {
+      display: grid;
+      gap: 12px;
+    }
+    .account-manager-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px;
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 8px;
+      background: var(--vscode-editor-background);
+    }
+    .account-manager-summary span {
+      display: block;
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+    }
+    .account-manager-summary strong {
+      display: block;
+      margin-top: 3px;
+      font-size: 16px;
+    }
+    .account-manager-list {
+      display: grid;
+      gap: 8px;
+    }
+    .manager-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      padding: 13px;
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 8px;
+      background: var(--vscode-editor-background);
+    }
+    .manager-card.active {
+      border-color: var(--vscode-focusBorder);
+      background: color-mix(in srgb, var(--vscode-editor-background), var(--vscode-focusBorder) 10%);
+    }
+    .manager-main {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      min-width: 0;
+    }
+    .manager-copy {
+      min-width: 0;
+      display: grid;
+      gap: 3px;
+    }
+    .manager-title {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .manager-title strong,
+    .manager-copy span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .manager-copy span {
+      color: var(--vscode-descriptionForeground);
+      font-size: 12px;
+    }
+    .manager-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 7px;
+    }
+    .manager-actions button {
+      min-height: 30px;
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+    .modal-feedback {
+      min-height: 32px;
+      padding: 8px 10px;
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 8px;
+      color: var(--vscode-descriptionForeground);
+      background: var(--vscode-editor-background);
+      font-size: 12px;
+    }
+    .login-flow {
+      display: grid;
+      grid-template-columns: minmax(0, .9fr) minmax(280px, 1.1fr);
+      gap: 14px;
+    }
+    .login-steps,
+    .browser-frame {
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 8px;
+      background: var(--vscode-editor-background);
+    }
+    .login-steps {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+    }
+    .login-step {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 9px;
+      align-items: start;
+      padding: 9px;
+      border-radius: 8px;
+      color: var(--vscode-descriptionForeground);
+    }
+    .login-step.active {
+      color: var(--vscode-foreground);
+      background: var(--vscode-toolbar-hoverBackground);
+    }
+    .login-step.done .step-dot {
+      color: #fff;
+      background: var(--vscode-charts-green);
+      border-color: var(--vscode-charts-green);
+    }
+    .step-dot {
+      width: 22px;
+      height: 22px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--vscode-widget-border);
+      border-radius: 50%;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .login-step strong,
+    .login-step span {
+      display: block;
+    }
+    .login-step span {
+      margin-top: 2px;
+      font-size: 12px;
+    }
+    .browser-frame {
+      min-height: 310px;
+      overflow: hidden;
+    }
+    .browser-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px;
+      border-bottom: 1px solid var(--vscode-widget-border);
+      background: var(--vscode-editorWidget-background);
+    }
+    .browser-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--vscode-descriptionForeground);
+      opacity: .7;
+    }
+    .browser-url {
+      min-width: 0;
+      flex: 1;
+      padding: 5px 8px;
+      border-radius: 999px;
+      color: var(--vscode-descriptionForeground);
+      background: var(--vscode-editor-background);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .browser-body {
+      display: grid;
+      gap: 12px;
+      place-items: center;
+      align-content: center;
+      min-height: 258px;
+      padding: 22px;
+      text-align: center;
+    }
+    .browser-logo {
+      width: 54px;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      border-radius: 14px;
+      color: #fff;
+      background: var(--vscode-button-background);
+      font-weight: 800;
+      font-size: 20px;
+    }
+    .browser-body p {
+      max-width: 340px;
+      margin: 0;
+      color: var(--vscode-descriptionForeground);
+      line-height: 1.45;
+    }
+    .login-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    @media (max-width: 760px) {
+      body { padding: 18px; }
+      .app-shell { grid-template-columns: 1fr; }
+      .rail { position: static; grid-template-columns: repeat(2, 1fr); }
+      .rail-brand { grid-column: 1 / -1; }
+      header, .accounts-heading { flex-direction: column; }
+      .header-controls { align-items: flex-start; width: 100%; }
+      .preview-controls { justify-content: flex-start; }
+      .overview { grid-template-columns: 1fr; }
+      .live-grid, .workspace-panel { grid-template-columns: 1fr; }
+      .summary-panel { grid-template-columns: 1fr; }
+      .recommendation { grid-template-columns: auto 1fr; }
+      .next-reset { grid-column: 1 / -1; text-align: left; }
+      .identity, .onboarding { grid-template-columns: 1fr; flex-direction: column; align-items: flex-start; }
+      .identity-main { width: 100%; }
+      .plan-pill { max-width: 100%; }
+      .health-strip { grid-template-columns: 1fr 1fr; }
+      .metric-card { grid-template-columns: 1fr; }
+      .metric-chart-wrap { margin: 0 auto; }
+      .account-card { grid-template-columns: 1fr; }
+      .marketplace-hero, .marketplace-grid, .marketplace-grid.three { grid-template-columns: 1fr; }
+      .account-actions { justify-content: flex-start; flex-wrap: wrap; }
+      .manager-card, .account-manager-summary { grid-template-columns: 1fr; flex-direction: column; align-items: flex-start; }
+      .manager-actions { justify-content: flex-start; }
+      .login-flow { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main id="app"></main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="status-preview"></div>
+  <dialog id="modal"></dialog>
+  <script src="/media/chart.umd.min.js"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const state = {
+      language: ['es', 'en'].includes(params.get('lang')) ? params.get('lang') : 'es',
+      theme: ['dark', 'light'].includes(params.get('theme')) ? params.get('theme') : 'dark',
+      scenario: ['good', 'warning', 'danger', 'pendingActive', 'savedQuotas', 'empty'].includes(params.get('scenario')) ? params.get('scenario') : 'good',
+      view: ['overview', 'marketplace', 'accounts', 'context', 'diagnostics'].includes(params.get('view')) ? params.get('view') : 'overview',
+      activeAccount: 'work',
+      lastRefresh: new Date(),
+      diagnosticsCount: 0,
+      activities: [
+        { tone: 'good', titleKey: 'activityPanelOpened', detailKey: 'activityPanelOpenedDetail' },
+        { tone: 'good', titleKey: 'activityAccountActive', detailKey: 'activityAccountActiveDetail' }
+      ],
+      charts: new Map()
+    };
+
+    const copy = {
+      es: {
+        title: 'Panel de uso de Codex',
+        subtitle: 'Preview interactiva para ajustar la experiencia antes del VSIX.',
+        refresh: 'Actualizar',
+        context: 'Contexto proyecto',
+        accounts: 'Gestionar cuentas',
+        openCodex: 'Abrir Codex',
+        overview: 'Resumen',
+        marketplaceView: 'Marketplace',
+        accountsView: 'Cuentas',
+        contextView: 'Contexto',
+        diagnosticsView: 'Diagnostico',
+        activity: 'Actividad',
+        activityPanelOpened: 'Panel abierto',
+        activityPanelOpenedDetail: 'Dashboard local listo para revisar cuotas y cuentas.',
+        activityAccountActive: 'Cuenta principal activa',
+        activityAccountActiveDetail: 'Credencial simulada disponible.',
+        noActivity: 'Sin actividad reciente',
+        focusMode: 'Modo foco',
+        nextReset: 'Proxima renovacion',
+        account: 'Cuenta usada por los chats nuevos de Codex',
+        localPlan: 'Plan local',
+        planDetail: 'dato local observado',
+        planTitle: 'Plan con creditos flexibles',
+        planText: 'Si las cuotas se agotan, el panel orienta a usar creditos disponibles en Codex Settings > Usage.',
+        planAction: 'Usar creditos cuando aplique',
+        health: 'Salud operativa',
+        healthDetail: 'Senales locales para saber si puedes empezar trabajo largo con esta cuenta.',
+        session: 'Sesion',
+        quotas: 'Cuotas',
+        workspace: 'Contexto',
+        credentials: 'Credenciales',
+        cadence: 'Refresco',
+        validated: 'validada',
+        needsLogin: 'requiere login',
+        pending: 'pendiente',
+        currentWorkspace: 'workspace actual',
+        globalSession: 'sesion global',
+        noContext: 'sin contexto',
+        free: 'libre',
+        used: 'usado',
+        quotaOf: 'Cuota de',
+        available: 'disponible',
+        resets: 'Se renueva',
+        shortHint: 'Es la cuota corta de uso intensivo. Su ventana exacta viene de los datos locales de Codex.',
+        longHint: 'Es la cuota de largo plazo de la cuenta activa.',
+        means: 'Que significa cada dato',
+        accountManagement: 'Gestion de cuentas',
+        detected: '2 cuentas detectadas en este equipo',
+        switchAccount: 'Cambiar cuenta',
+        addAccount: 'Agregar cuenta',
+        activeNow: 'Activa ahora',
+        ready: 'Lista para usar',
+        lastUsed: 'Ultimo uso',
+        rename: 'Renombrar',
+        delete: 'Eliminar',
+        footnote: 'Preview local: los botones simulan estados para disenar rapido antes de empaquetar la extension.',
+        quotaSyncNote: 'Actualizar lee los datos locales existentes; la cuota aparece cuando Codex escribe un token_count nuevo. Tras cambiar cuenta, el panel busca cada 2 s durante un rato.',
+        quotaPendingReason: 'Pendiente: Codex todavia no ha escrito una cuota nueva para esta cuenta.',
+        quotaSavedReason: 'Ultima lectura guardada de esta cuenta.',
+        quotaLiveReason: 'Lectura viva de la cuenta activa.',
+        pendingActive: 'activa sin tokens',
+        savedQuotas: 'cuotas guardadas',
+        marketplaceTitle: 'Codex Gestion',
+        marketplaceSubtitle: 'Panel local de VS Code para cuotas de Codex, sesiones y cambio de cuentas.',
+        marketplaceInstall: 'Instalar desde Marketplace',
+        marketplaceVsix: 'Probar VSIX local',
+        marketplaceQuotasTitle: 'Cuotas sin asumir ventanas fijas',
+        marketplaceQuotasText: 'Lee las ventanas que Codex escribe localmente y muestra disponibilidad, renovacion y contexto de cuenta. Si Codex aun no ha escrito token_count, el estado se muestra como pendiente.',
+        marketplaceAccountsTitle: 'Multi-cuenta local',
+        marketplaceAccountsText: 'Guarda credenciales en VS Code SecretStorage, conserva la ultima cuota atribuida de cada cuenta y evita copiar lecturas genericas entre perfiles.',
+        marketplacePrivacyTitle: 'Privacidad local',
+        marketplacePrivacyText: 'No hay backend. Los datos se leen desde ~/.codex y SecretStorage, y los diagnosticos se muestran saneados.',
+        marketplaceHighlights: [
+          'Dashboard con graficas de cuota que se actualizan sin reconstruirse cada refresco.',
+          'Vista de cuentas con lectura viva, ultima lectura guardada y estados pendientes claros.',
+          'Refresco rapido temporal tras cambiar cuenta para capturar nuevas cuotas cuanto antes.',
+          'Contexto de proyecto local para continuar trabajo entre chats o cuentas.'
+        ],
+        latest: 'Ultimo dato de Codex',
+        checked: 'Comprobado por la extension',
+        sessions: 'Sesiones locales activas',
+        duration: 'Lectura completada en',
+        diagnostics: 'Ver diagnostico tecnico',
+        close: 'Cerrar',
+        refreshed: 'Datos locales actualizados',
+        contextOpened: 'Contexto del proyecto preparado',
+        codexOpened: 'Abriendo Codex simulado',
+        accountSwitched: 'Cuenta cambiada',
+        accountRenamed: 'Alias actualizado',
+        accountDeleted: 'Cuenta inactiva eliminada',
+      accountAdded: 'Login simulado iniciado',
+      loginTitle: 'Agregar cuenta',
+      loginIntro: 'VS Code no puede garantizar un login real dentro de un iframe, pero el panel puede guiar el proceso y detectar la cuenta cuando Codex termine.',
+      loginStepOne: 'Preparar sesion limpia',
+      loginStepOneText: 'Guarda la cuenta actual cifrada y evita mezclar credenciales.',
+      loginStepTwo: 'Abrir login oficial',
+      loginStepTwoText: 'El login se abre fuera del iframe por seguridad de OAuth.',
+      loginStepThree: 'Detectar auth.json',
+      loginStepThreeText: 'La extension observa cambios locales y guarda la cuenta nueva.',
+      loginStepFour: 'Actualizar panel',
+      loginStepFourText: 'El dashboard se refresca con la nueva cuenta activa.',
+      openExternalLogin: 'Abrir login oficial',
+      simulateLogin: 'Simular login completado',
+      loginWaiting: 'Esperando que Codex escriba la nueva sesion local.',
+      loginDone: 'Cuenta nueva detectada y guardada.',
+      loginIframeNote: 'Zona de navegador simulada: en VS Code real se usaria apertura externa/oficial y deteccion local.',
+      diagnosticsTitle: 'Diagnostico tecnico',
+        contextTitle: 'Contexto del proyecto',
+      accountDialogTitle: 'Gestionar cuentas',
+      switchTo: 'Activar',
+      simulated: 'Accion simulada',
+      activeCredential: 'Credencial activa',
+      savedCredential: 'Credencial guardada',
+      accountSummary: 'Cambia, renombra o limpia cuentas guardadas en esta vista simulada.',
+      cleanInactive: 'Limpiar inactivas',
+      cannotDeleteActive: 'La cuenta activa no se puede eliminar.',
+        inactiveCleaned: 'Cuentas inactivas limpiadas',
+      onboardingTitle: 'Empieza con Codex Gestion',
+        onboardingDetail: 'Abre Codex o inicia un chat para que aparezcan cuotas, plan y sesiones.',
+        goodTitle: 'Todo en buen estado',
+        goodDetail: 'Tienes margen suficiente para seguir trabajando con la cuenta activa.',
+        warningTitle: 'Uso elevado, pero todavia hay margen',
+        warningDetail: 'Puedes continuar. Revisa la hora de renovacion antes de comenzar una tarea larga.',
+        dangerTitle: 'La cuota corta esta casi agotada',
+        dangerDetail: 'Conviene esperar a la proxima renovacion o cambiar de cuenta antes de iniciar trabajo largo.'
+      },
+      en: {
+        title: 'Codex usage panel',
+        subtitle: 'Interactive preview for tuning the experience before the VSIX.',
+        refresh: 'Refresh',
+        context: 'Project context',
+        accounts: 'Manage accounts',
+        openCodex: 'Open Codex',
+        overview: 'Overview',
+        marketplaceView: 'Marketplace',
+        accountsView: 'Accounts',
+        contextView: 'Context',
+        diagnosticsView: 'Diagnostics',
+        activity: 'Activity',
+        activityPanelOpened: 'Panel opened',
+        activityPanelOpenedDetail: 'Local dashboard ready for quota and account checks.',
+        activityAccountActive: 'Primary account active',
+        activityAccountActiveDetail: 'Simulated credential available.',
+        noActivity: 'No recent activity',
+        focusMode: 'Focus mode',
+        nextReset: 'Next reset',
+        account: 'Account used by new Codex chats',
+        localPlan: 'Local plan',
+        planDetail: 'observed local data',
+        planTitle: 'Flexible credits plan',
+        planText: 'If quotas run out, the panel points to credits available from Codex Settings > Usage.',
+        planAction: 'Use credits when available',
+        health: 'Operational health',
+        healthDetail: 'Local signals for deciding whether this account is ready for long work.',
+        session: 'Session',
+        quotas: 'Quotas',
+        workspace: 'Context',
+        credentials: 'Credentials',
+        cadence: 'Refresh',
+        validated: 'validated',
+        needsLogin: 'needs sign-in',
+        pending: 'pending',
+        currentWorkspace: 'current workspace',
+        globalSession: 'global session',
+        noContext: 'no context',
+        free: 'free',
+        used: 'used',
+        quotaOf: 'Quota of',
+        available: 'available',
+        resets: 'Resets',
+        shortHint: 'Short intensive-use quota. Its exact window comes from local Codex data.',
+        longHint: 'Long-term quota for the active account.',
+        means: 'What each value means',
+        accountManagement: 'Account management',
+        detected: '2 accounts detected on this machine',
+        switchAccount: 'Switch account',
+        addAccount: 'Add account',
+        activeNow: 'Active now',
+        ready: 'Ready to use',
+        lastUsed: 'Last used',
+        rename: 'Rename',
+        delete: 'Delete',
+        footnote: 'Local preview: buttons simulate states so the UI can be designed quickly before packaging.',
+        quotaSyncNote: 'Refresh reads existing local data; quota appears when Codex writes a new token_count. After switching accounts, the panel searches every 2 s for a short time.',
+        quotaPendingReason: 'Pending: Codex has not written a new quota for this account yet.',
+        quotaSavedReason: 'Last saved reading for this account.',
+        quotaLiveReason: 'Live reading from the active account.',
+        pendingActive: 'active without tokens',
+        savedQuotas: 'saved quotas',
+        marketplaceTitle: 'Codex Gestion',
+        marketplaceSubtitle: 'A local VS Code dashboard for Codex quotas, sessions, and account switching.',
+        marketplaceInstall: 'Install from Marketplace',
+        marketplaceVsix: 'Try local VSIX',
+        marketplaceQuotasTitle: 'Quotas without fixed assumptions',
+        marketplaceQuotasText: 'Reads the windows Codex writes locally and shows availability, reset timing, and account context. If Codex has not written token_count yet, the state stays pending.',
+        marketplaceAccountsTitle: 'Local multi-account workflow',
+        marketplaceAccountsText: "Stores credentials in VS Code SecretStorage, preserves each account's last attributed quota, and avoids copying generic readings across profiles.",
+        marketplacePrivacyTitle: 'Local privacy',
+        marketplacePrivacyText: 'No backend. Data is read from ~/.codex and SecretStorage, and diagnostics are shown sanitized.',
+        marketplaceHighlights: [
+          'Dashboard quota charts update in place instead of rebuilding on every refresh.',
+          'Accounts view shows live readings, last saved readings, and clear pending states.',
+          'Short-lived fast polling after account switches catches new quotas sooner.',
+          'Local project context helps continue work across chats or accounts.'
+        ],
+        latest: 'Latest Codex data',
+        checked: 'Checked by extension',
+        sessions: 'Active local sessions',
+        duration: 'Read completed in',
+        diagnostics: 'View technical diagnostics',
+        close: 'Close',
+        refreshed: 'Local data refreshed',
+        contextOpened: 'Project context prepared',
+        codexOpened: 'Opening simulated Codex',
+        accountSwitched: 'Account switched',
+        accountRenamed: 'Alias updated',
+        accountDeleted: 'Inactive account deleted',
+      accountAdded: 'Simulated login started',
+      loginTitle: 'Add account',
+      loginIntro: 'VS Code cannot guarantee a real sign-in inside an iframe, but the panel can guide the process and detect the account when Codex finishes.',
+      loginStepOne: 'Prepare clean session',
+      loginStepOneText: 'Save the current account encrypted and avoid mixing credentials.',
+      loginStepTwo: 'Open official sign-in',
+      loginStepTwoText: 'Sign-in opens outside the iframe for OAuth security.',
+      loginStepThree: 'Detect auth.json',
+      loginStepThreeText: 'The extension watches local changes and saves the new account.',
+      loginStepFour: 'Refresh panel',
+      loginStepFourText: 'The dashboard refreshes with the new active account.',
+      openExternalLogin: 'Open official sign-in',
+      simulateLogin: 'Simulate completed sign-in',
+      loginWaiting: 'Waiting for Codex to write the new local session.',
+      loginDone: 'New account detected and saved.',
+      loginIframeNote: 'Simulated browser area: real VS Code would use external/official sign-in plus local detection.',
+      diagnosticsTitle: 'Technical diagnostics',
+        contextTitle: 'Project context',
+      accountDialogTitle: 'Manage accounts',
+      switchTo: 'Activate',
+      simulated: 'Simulated action',
+      activeCredential: 'Active credential',
+      savedCredential: 'Saved credential',
+      accountSummary: 'Switch, rename, or clear saved accounts in this simulated view.',
+      cleanInactive: 'Clear inactive',
+      cannotDeleteActive: 'The active account cannot be deleted.',
+      inactiveCleaned: 'Inactive accounts cleared',
+      onboardingTitle: 'Start with Codex Gestion',
+        onboardingDetail: 'Open Codex or start a chat to show quotas, plan, and sessions.',
+        goodTitle: 'Everything looks good',
+        goodDetail: 'You have enough room to keep working with the active account.',
+        warningTitle: 'Usage is high, but there is still room',
+        warningDetail: 'You can continue. Check the reset time before starting a long task.',
+        dangerTitle: 'The short quota is almost exhausted',
+        dangerDetail: 'Consider waiting for the next reset or switching accounts before starting long work.'
+      }
+    };
+
+    const scenarios = {
+      good: { tone: 'good', used: [35, 21], session: 'ok', context: 'workspace', credentials: 2, quotas: 2 },
+      warning: { tone: 'warning', used: [78, 63], session: 'ok', context: 'global', credentials: 1, quotas: 2 },
+      danger: { tone: 'danger', used: [96, 91], session: 'invalid', context: 'global', credentials: 1, quotas: 2 },
+      pendingActive: { tone: 'warning', used: [], session: 'ok', context: 'workspace', credentials: 2, quotas: 0 },
+      savedQuotas: { tone: 'good', used: [58, 48], session: 'ok', context: 'workspace', credentials: 2, quotas: 2 },
+      empty: { tone: 'warning', used: [], session: 'pending', context: 'none', credentials: 0, quotas: 0 }
+    };
+
+    function t(key) { return copy[state.language][key]; }
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
+    }
+    function toneIcon(tone) { return tone === 'good' ? '&#10003;' : '!'; }
+    function quotaTone(used) { return used >= 90 ? 'danger' : used >= 75 ? 'warning' : 'accent'; }
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('visible');
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => toast.classList.remove('visible'), 1800);
+    }
+    function logActivity(title, detail = '', tone = 'good') {
+      state.activities.unshift({ title, detail, tone });
+      state.activities = state.activities.slice(0, 6);
+    }
+    function openModal(title, body) {
+      const modal = document.getElementById('modal');
+      modal.innerHTML = `
+        <div class="dialog-head">
+          <h2>${escapeHtml(title)}</h2>
+          <button class="secondary" data-close-modal>${escapeHtml(t('close'))}</button>
+        </div>
+        ${body}`;
+      modal.showModal();
+    }
+    function currentAccount() {
+      return state.activeAccount === 'work'
+        ? { initials: 'CP', label: 'Cuenta principal', email: 'principal@example.com', plan: 'PLUS' }
+        : { initials: 'CS', label: 'Cuenta secundaria', email: 'secundaria@example.com', plan: 'PLUS' };
+    }
+    function scenarioLabel(name) {
+      if (name === 'pendingActive') return t('pendingActive');
+      if (name === 'savedQuotas') return t('savedQuotas');
+      return name;
+    }
+    function accountRows(data) {
+      const workLive = state.activeAccount === 'work' && data.used.length ? data.used : null;
+      const personalLive = state.activeAccount === 'personal' && data.used.length ? data.used : null;
+      return [
+        {
+          id: 'work',
+          initials: 'CP',
+          label: 'Cuenta principal',
+          email: 'principal@example.com',
+          plan: 'PLUS',
+          usage: workLive,
+          source: workLive ? 'live' : null,
+          lastUsed: '9/3/2026, 1:19:48 PM'
+        },
+        {
+          id: 'personal',
+          initials: 'CS',
+          label: 'Cuenta secundaria',
+          email: 'secundaria@example.com',
+          plan: 'PLUS',
+          usage: personalLive || [58, 48],
+          source: personalLive ? 'live' : 'saved',
+          lastUsed: '9/3/2026, 1:19:33 PM'
+        }
+      ];
+    }
+    function quotaUsageHtml(account) {
+      if (!account.usage) {
+        return `<div class="account-usage pending"><div><small>${escapeHtml(t('quotas'))}</small><strong>${escapeHtml(t('pending'))}</strong></div></div>`;
+      }
+      return `<div class="account-usage">
+        <div><small>5 h</small><strong>${100 - account.usage[0]}% ${escapeHtml(t('free'))}</strong></div>
+        <div><small>7 d</small><strong>${100 - account.usage[1]}% ${escapeHtml(t('free'))}</strong></div>
+      </div>`;
+    }
+    function quotaSourceText(account) {
+      if (!account.usage) return t('quotaPendingReason');
+      return account.source === 'live' ? t('quotaLiveReason') : t('quotaSavedReason');
+    }
+    function accountCard(account) {
+      const isActive = state.activeAccount === account.id;
+      return `
+        <article class="account-card ${isActive ? 'active' : ''}" data-account-card="${escapeHtml(account.id)}">
+          <div class="account-main">
+            <div class="account-avatar">${escapeHtml(account.initials)}</div>
+            <div class="account-copy">
+              <div class="account-title">
+                <strong>${escapeHtml(account.label)}</strong>
+                ${isActive ? `<span class="badge">${escapeHtml(t('activeNow'))}</span>` : `<span class="badge muted">${escapeHtml(t('ready'))}</span>`}
+              </div>
+              <span class="account-detail">${escapeHtml(account.email)}</span>
+              <span class="account-plan">CHATGPT - ${escapeHtml(account.plan)}</span>
+            </div>
+          </div>
+          ${quotaUsageHtml(account)}
+          <div class="account-actions">
+            ${!isActive ? `<button class="small secondary" data-switch-account="${escapeHtml(account.id)}">${escapeHtml(t('switchTo'))}</button>` : ''}
+            <button class="small secondary" data-action="rename">${escapeHtml(t('rename'))}</button>
+            ${!isActive ? `<button class="small danger-button" data-action="delete">${escapeHtml(t('delete'))}</button>` : ''}
+          </div>
+          <div class="account-source">
+            <span>${escapeHtml(t('lastUsed'))}: ${escapeHtml(account.lastUsed)}</span>
+            <strong>${escapeHtml(quotaSourceText(account))}</strong>
+          </div>
+        </article>`;
+    }
+    function marketplacePreview() {
+      const highlights = t('marketplaceHighlights').map(item => `<li>${escapeHtml(item)}</li>`).join('');
+      return `
+        <section class="marketplace-page">
+          <section class="marketplace-hero">
+            <img class="marketplace-logo" src="/media/codex-gestion-logo.png" alt="Codex Gestion logo">
+            <div>
+              <h2>${escapeHtml(t('marketplaceTitle'))}</h2>
+              <p>${escapeHtml(t('marketplaceSubtitle'))}</p>
+              <div class="marketplace-badges">
+                <span class="marketplace-badge">v1.0.1</span>
+                <span class="marketplace-badge">VS Code ^1.85</span>
+                <span class="marketplace-badge">local only</span>
+                <span class="marketplace-badge">English / Espanol</span>
+              </div>
+              <div class="marketplace-actions">
+                <button>${escapeHtml(t('marketplaceInstall'))}</button>
+                <button class="secondary">${escapeHtml(t('marketplaceVsix'))}</button>
+              </div>
+            </div>
+          </section>
+          <img class="marketplace-shot" src="/media/marketplace-dashboard-focus.png" alt="Codex Gestion Marketplace dashboard preview">
+          <section class="marketplace-grid">
+            <div class="marketplace-section">
+              <h3>${escapeHtml(t('marketplaceQuotasTitle'))}</h3>
+              <p class="marketplace-copy">${escapeHtml(t('marketplaceQuotasText'))}</p>
+            </div>
+            <div class="marketplace-section">
+              <h3>${escapeHtml(t('marketplaceAccountsTitle'))}</h3>
+              <p class="marketplace-copy">${escapeHtml(t('marketplaceAccountsText'))}</p>
+            </div>
+          </section>
+          <section class="marketplace-section">
+            <h3>Highlights</h3>
+            <ul class="feature-list">${highlights}</ul>
+          </section>
+          <section class="marketplace-grid">
+            <div class="marketplace-section">
+              <h3>Dashboard</h3>
+              <img class="marketplace-shot" src="/media/marketplace-dashboard-en.png" alt="English Marketplace screenshot">
+            </div>
+            <div class="marketplace-section">
+              <h3>${escapeHtml(t('marketplaceAccountsTitle'))}</h3>
+              <img class="marketplace-shot" src="/media/marketplace-dashboard-es.png" alt="Spanish Marketplace screenshot">
+            </div>
+          </section>
+          <section class="marketplace-section">
+            <h3>Status bar</h3>
+            <img class="marketplace-shot" src="/media/marketplace-status-tooltip.png" alt="Codex Gestion status bar tooltip in VS Code position">
+          </section>
+          <section class="marketplace-section">
+            <h3>${escapeHtml(t('marketplacePrivacyTitle'))}</h3>
+            <p class="marketplace-copy">${escapeHtml(t('marketplacePrivacyText'))}</p>
+          </section>
+        </section>`;
+    }
+    function healthItems(data) {
+      const sessionValue = data.session === 'ok' ? t('validated') : data.session === 'invalid' ? t('needsLogin') : t('pending');
+      const contextValue = data.context === 'workspace' ? t('currentWorkspace') : data.context === 'global' ? t('globalSession') : t('noContext');
+      const refreshCadence = data.quotas ? '60 s' : '2 s';
+      return [
+        [t('session'), sessionValue, data.session === 'ok' ? 'good' : data.session === 'invalid' ? 'danger' : 'warning'],
+        [t('quotas'), data.quotas ? String(data.quotas) : t('pending'), data.quotas ? 'good' : 'warning'],
+        [t('workspace'), contextValue, data.context === 'workspace' ? 'good' : data.context === 'global' ? 'warning' : 'muted'],
+        [t('credentials'), String(data.credentials), data.credentials ? 'good' : 'muted'],
+        [t('cadence'), refreshCadence, data.quotas ? 'good' : 'warning']
+      ];
+    }
+    function activityPanel() {
+      const items = state.activities.length
+        ? state.activities.map(item => `
+          <div class="activity-item ${escapeHtml(item.tone)}">
+            <i></i>
+            <div><strong>${escapeHtml(item.titleKey ? t(item.titleKey) : item.title)}</strong><span>${escapeHtml(item.detailKey ? t(item.detailKey) : item.detail)}</span></div>
+          </div>`).join('')
+        : `<p class="subtitle">${escapeHtml(t('noActivity'))}</p>`;
+      return `<aside class="surface activity-panel">
+        <h2>${escapeHtml(t('activity'))}</h2>
+        <div class="activity-list">${items}</div>
+      </aside>`;
+    }
+    function navButton(view, label) {
+      return `<button class="nav-button ${state.view === view ? 'active' : ''}" data-view="${escapeHtml(view)}"><span class="nav-dot"></span>${escapeHtml(label)}</button>`;
+    }
+    function metricCard(label, used, hint) {
+      const available = Math.max(0, 100 - used);
+      const pending = !Number.isFinite(Number(used));
+      return `
+        <section class="metric-card ${quotaTone(used)} ${pending ? 'loading' : ''}" data-chart-card data-chart-key="${escapeHtml(label)}" data-available="${pending ? 0 : available}" data-used="${pending ? 0 : used}" data-tone="${quotaTone(used)}" data-pending="${pending ? 'true' : 'false'}">
+          <div class="metric-chart-wrap">
+            <canvas class="metric-chart" width="136" height="136"></canvas>
+            <div class="metric-center"><strong data-chart-center>${pending ? '--' : `${available}%`}</strong><span data-chart-center-label>${escapeHtml(pending ? t('pending') : t('free'))}</span></div>
+          </div>
+          <div class="metric-copy">
+            <div class="metric-top"><span class="metric-label" data-chart-label>${escapeHtml(label)}</span></div>
+            <strong class="metric-value" data-chart-value>${escapeHtml(pending ? t('pending') : `${available}% ${t('available')}`)}</strong>
+            <div class="quota-legend">
+              <span><i class="legend-dot free"></i><span data-chart-free>${pending ? 0 : available}% ${escapeHtml(t('free'))}</span></span>
+              <span><i class="legend-dot used"></i><span data-chart-used>${pending ? 0 : used}% ${escapeHtml(t('used'))}</span></span>
+            </div>
+            <span class="metric-detail" data-chart-detail>${escapeHtml(t('resets'))} hoy a las 18:30 (dentro de 2 h 14 min)</span>
+            <small class="metric-hint" data-chart-hint>${escapeHtml(hint)}</small>
+          </div>
+        </section>`;
+    }
+    function statusPreview(data) {
+      if (!data.used.length) {
+        return `
+        <div class="status-preview" tabindex="0">
+          <span class="status-dot"></span>
+          <span>Codex - ${escapeHtml(t('pending'))}</span>
+          <div class="status-tooltip" role="tooltip">
+            <div class="status-tooltip-head">
+              <div>
+                <strong>${escapeHtml(currentAccount().email)}</strong>
+                <span>${escapeHtml(t('quotaPendingReason'))}</span>
+              </div>
+              <span class="status-version">v1.0.1</span>
+            </div>
+            <div class="tooltip-actions">
+              <button data-view="overview">${escapeHtml(t('overview'))}</button>
+              <button data-action="refresh">${escapeHtml(t('refresh'))}</button>
+            </div>
+            <div class="tooltip-footer">
+              <span>${escapeHtml(t('cadence'))}: 2 s</span>
+              <span>Codex Gestion</span>
+            </div>
+          </div>
+        </div>`;
+      }
+      const first = data.used[0] ?? 0;
+      const second = data.used[1] ?? 0;
+      const firstFree = Math.max(0, 100 - first);
+      const secondFree = Math.max(0, 100 - second);
+      return `
+        <div class="status-preview" tabindex="0">
+          <span class="status-dot"></span>
+          <span>${firstFree}% ${escapeHtml(t('free'))} | 2 h 14 min</span>
+          <div class="status-tooltip" role="tooltip">
+            <div class="status-tooltip-head">
+              <div>
+                <strong>${escapeHtml(currentAccount().email)}</strong>
+                <span>${escapeHtml(t('localPlan'))} ${escapeHtml(currentAccount().plan)} · ${escapeHtml(data.session === 'ok' ? t('validated') : data.session === 'invalid' ? t('needsLogin') : t('pending'))}</span>
+              </div>
+              <span class="status-version">v1.0.1</span>
+            </div>
+            <div class="tooltip-actions">
+              <button data-view="overview">${escapeHtml(t('overview'))}</button>
+              <button data-action="refresh">${escapeHtml(t('refresh'))}</button>
+            </div>
+            <div class="tooltip-quota">
+              <div class="tooltip-quota-title"><strong>${escapeHtml(`${t('quotaOf')} 3 h`)}</strong><span>hoy 18:30</span></div>
+              <div class="tooltip-bar"><span style="width: ${firstFree}%"></span></div>
+              <div class="tooltip-quota-meta"><span>${first}% ${escapeHtml(t('used'))}</span><strong>${firstFree}% ${escapeHtml(t('free'))}</strong></div>
+            </div>
+            <div class="tooltip-quota">
+              <div class="tooltip-quota-title"><strong>${escapeHtml(`${t('quotaOf')} 7 d`)}</strong><span>Sep 07, 10:32</span></div>
+              <div class="tooltip-bar"><span style="width: ${secondFree}%"></span></div>
+              <div class="tooltip-quota-meta"><span>${second}% ${escapeHtml(t('used'))}</span><strong>${secondFree}% ${escapeHtml(t('free'))}</strong></div>
+            </div>
+            <div class="tooltip-footer">
+              <span>${escapeHtml(t('checked'))}: ${state.lastRefresh.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              <span>Codex Gestion</span>
+            </div>
+          </div>
+        </div>`;
+    }
+    function renderCharts() {
+      const css = getComputedStyle(document.documentElement);
+      const colorFor = name => css.getPropertyValue(name).trim();
+      const toneColor = tone => tone === 'danger' ? colorFor('--vscode-charts-red') : tone === 'warning' ? colorFor('--vscode-charts-orange') : colorFor('--vscode-charts-green');
+      document.querySelectorAll('[data-chart-card]').forEach(card => {
+        const canvas = card.querySelector('canvas');
+        if (!canvas || !window.Chart || card.dataset.pending === 'true') return;
+        const key = card.dataset.chartKey;
+        const nextData = [Number(card.dataset.available) || 0, Number(card.dataset.used) || 0];
+        const existing = state.charts.get(key);
+        if (existing && existing.canvas === canvas) {
+          const currentData = existing.data.datasets[0].data.map(Number);
+          existing.data.datasets[0].backgroundColor = [toneColor(card.dataset.tone), colorFor('--vscode-descriptionForeground')];
+          existing.data.datasets[0].data = nextData;
+          existing.update(currentData[0] === nextData[0] && currentData[1] === nextData[1] ? 'none' : undefined);
+          return;
+        }
+        if (existing) existing.destroy();
+        const chart = new Chart(canvas, {
+          type: 'doughnut',
+          data: {
+            labels: [t('free'), t('used')],
+            datasets: [{
+              data: nextData,
+              backgroundColor: [toneColor(card.dataset.tone), colorFor('--vscode-descriptionForeground')],
+              borderColor: colorFor('--vscode-editorWidget-background'),
+              borderWidth: 4,
+              hoverOffset: 3
+            }]
+          },
+          options: {
+            responsive: false,
+            cutout: '72%',
+            plugins: { legend: { display: false }, tooltip: { enabled: false } },
+            animation: { duration: 250 }
+          }
+        });
+        state.charts.set(key, chart);
+      });
+    }
+    function setText(selector, value) {
+      const node = document.querySelector(selector);
+      if (node) node.textContent = value;
+    }
+    function updateLiveOverview() {
+      const data = scenarios[state.scenario];
+      const titleKey = data.tone === 'danger' ? 'dangerTitle' : data.tone === 'warning' ? 'warningTitle' : 'goodTitle';
+      const detailKey = data.tone === 'danger' ? 'dangerDetail' : data.tone === 'warning' ? 'warningDetail' : 'goodDetail';
+      setText('[data-summary-title]', t(titleKey));
+      setText('[data-summary-detail]', t(detailKey));
+      setText('[data-summary-reset]', `${t('nextReset')}: hoy 18:30`);
+      setText('[data-summary-plan]', currentAccount().plan);
+      setText('[data-summary-context]', `${t('workspace')}: ${data.context === 'workspace' ? t('currentWorkspace') : data.context === 'global' ? t('globalSession') : t('noContext')}`);
+      data.used.forEach((used, index) => {
+        const label = `${t('quotaOf')} ${index === 0 ? '3 h' : '7 d'}`;
+        const available = Math.max(0, 100 - used);
+        const tone = quotaTone(used);
+        const card = Array.from(document.querySelectorAll('[data-chart-card]')).find(node => node.dataset.chartKey === label);
+        if (!card) return;
+        card.dataset.available = String(available);
+        card.dataset.used = String(used);
+        card.dataset.tone = tone;
+        card.dataset.pending = 'false';
+        card.classList.remove('accent', 'warning', 'danger', 'loading');
+        card.classList.add(tone);
+        const setInside = (selector, value) => {
+          const node = card.querySelector(selector);
+          if (node) node.textContent = value;
+        };
+        setInside('[data-chart-center]', `${available}%`);
+        setInside('[data-chart-center-label]', t('free'));
+        setInside('[data-chart-value]', `${available}% ${t('available')}`);
+        setInside('[data-chart-free]', `${available}% ${t('free')}`);
+        setInside('[data-chart-used]', `${used}% ${t('used')}`);
+      });
+      document.getElementById('status-preview').innerHTML = statusPreview(data);
+      renderCharts();
+    }
+    function render() {
+      const data = scenarios[state.scenario];
+      const account = currentAccount();
+      const captureMode = params.get('capture') === '1';
+      document.documentElement.lang = state.language;
+      document.documentElement.dataset.theme = state.theme;
+      document.body.classList.toggle('capture-mode', captureMode);
+      document.body.classList.toggle('show-status-tooltip', params.get('tooltip') === '1');
+      document.body.classList.toggle('empty-state', state.scenario === 'empty');
+      const titleKey = data.tone === 'danger' ? 'dangerTitle' : data.tone === 'warning' ? 'warningTitle' : 'goodTitle';
+      const detailKey = data.tone === 'danger' ? 'dangerDetail' : data.tone === 'warning' ? 'warningDetail' : 'goodDetail';
+      const refreshCadence = data.quotas ? '60 s' : '2 s';
+      const quotaCards = data.used.length
+        ? data.used.map((used, index) => metricCard(`${t('quotaOf')} ${index === 0 ? '3 h' : '7 d'}`, used, index === 0 ? t('shortHint') : t('longHint'))).join('')
+        : metricCard(`${t('quotaOf')} local`, NaN, t('onboardingDetail'));
+      document.getElementById('app').innerHTML = `
+        <div class="app-shell">
+          <nav class="rail" aria-label="Preview navigation">
+            <div class="rail-brand">
+              <strong>Codex Gestion</strong>
+              <span>v1.0.1</span>
+            </div>
+            ${navButton('overview', t('overview'))}
+            ${navButton('marketplace', t('marketplaceView'))}
+            ${navButton('accounts', t('accountsView'))}
+            ${navButton('context', t('contextView'))}
+            ${navButton('diagnostics', t('diagnosticsView'))}
+          </nav>
+          <div class="content">
+        <header>
+          <div>
+            <h1>${escapeHtml(t('title'))}</h1>
+            <p class="subtitle">${escapeHtml(captureMode ? t('marketplaceSubtitle') : t('subtitle'))}</p>
+          </div>
+          <div class="header-controls">
+            <div class="preview-controls">
+              ${['good', 'warning', 'danger', 'pendingActive', 'savedQuotas', 'empty'].map(name => `<button class="secondary ${state.scenario === name ? 'active' : ''}" data-scenario="${name}" title="${escapeHtml(t('simulated'))}">${escapeHtml(scenarioLabel(name))}</button>`).join('')}
+              <button class="secondary" data-theme-toggle>${state.theme === 'dark' ? 'Light' : 'Dark'}</button>
+              <div class="language-selector" role="group" aria-label="Language">
+                ${['es', 'en'].map(lang => `<button class="${state.language === lang ? 'active' : ''}" data-language="${lang}">${lang.toUpperCase()}</button>`).join('')}
+              </div>
+            </div>
+            <div class="actions">
+              <button data-action="refresh">${escapeHtml(t('refresh'))}</button>
+              <button class="secondary" data-view="context">${escapeHtml(t('context'))}</button>
+              <button class="secondary" data-view="accounts">${escapeHtml(t('accounts'))}</button>
+              <button class="secondary" data-action="openCodex">${escapeHtml(t('openCodex'))}</button>
+            </div>
+          </div>
+        </header>
+        <section class="view-panel ${state.view === 'overview' ? 'active' : ''}">
+        <section class="onboarding">
+          <div><h2>${escapeHtml(t('onboardingTitle'))}</h2><p>${escapeHtml(t('onboardingDetail'))}</p></div>
+          <div class="actions"><button data-action="openCodex">${escapeHtml(t('openCodex'))}</button><button class="secondary" data-view="accounts">${escapeHtml(t('accounts'))}</button></div>
+        </section>
+        <section class="overview">
+          <div class="overview-main">
+            <div class="surface summary-panel">
+              <div class="summary-copy">
+                <strong data-summary-title>${escapeHtml(t(titleKey))}</strong>
+                <p data-summary-detail>${escapeHtml(t(detailKey))}</p>
+                <div class="summary-facts">
+                  <span data-summary-reset>${escapeHtml(t('nextReset'))}: hoy 18:30</span>
+                  <span data-summary-plan>PLUS</span>
+                  <span data-summary-context>${escapeHtml(t('workspace'))}: ${escapeHtml(data.context === 'workspace' ? t('currentWorkspace') : data.context === 'global' ? t('globalSession') : t('noContext'))}</span>
+                </div>
+              </div>
+            </div>
+            <div class="metrics">${quotaCards}</div>
+          </div>
+          <div class="surface side-panel">
+            <section class="identity">
+              <div class="identity-main">
+                <div class="avatar">${escapeHtml(account.initials)}</div>
+                <div class="identity-copy"><strong>${escapeHtml(account.label)}</strong><span>${escapeHtml(t('account'))}</span></div>
+              </div>
+              <span class="plan-pill">${escapeHtml(t('localPlan'))} ${escapeHtml(account.plan)}</span>
+            </section>
+            <div class="side-stat-grid">
+              <div class="side-stat"><span>${escapeHtml(t('session'))}</span><strong>${escapeHtml(data.session === 'ok' ? t('validated') : data.session === 'invalid' ? t('needsLogin') : t('pending'))}</strong></div>
+              <div class="side-stat"><span>${escapeHtml(t('workspace'))}</span><strong>${escapeHtml(data.context === 'workspace' ? t('currentWorkspace') : data.context === 'global' ? t('globalSession') : t('noContext'))}</strong></div>
+              <div class="side-stat"><span>${escapeHtml(t('credentials'))}</span><strong>${escapeHtml(data.credentials)}</strong></div>
+              <div class="side-stat"><span>${escapeHtml(t('cadence'))}</span><strong>${escapeHtml(refreshCadence)}</strong></div>
+            </div>
+          <section class="plan-strategy">
+            <div class="plan-strategy-copy">
+              <strong>${escapeHtml(t('planTitle'))}</strong>
+              <span>${escapeHtml(t('planText'))}</span>
+              <span class="plan-action">${escapeHtml(t('planAction'))}</span>
+            </div>
+          </section>
+          </div>
+        </section>
+        ${activityPanel()}
+        </section>
+        <section class="view-panel ${state.view === 'marketplace' ? 'active' : ''}">
+          ${marketplacePreview()}
+        </section>
+        <section class="view-panel ${state.view === 'accounts' ? 'active' : ''}">
+        <div class="accounts-heading">
+          <div><h2>${escapeHtml(t('accountManagement'))}</h2><p class="subtitle">${escapeHtml(t('detected'))}</p></div>
+          <div class="actions"><button class="secondary" data-action="switchAccount">${escapeHtml(t('switchAccount'))}</button><button class="secondary" data-action="addAccount">${escapeHtml(t('addAccount'))}</button></div>
+        </div>
+        <div class="accounts">
+          ${accountRows(data).map(accountCard).join('')}
+        </div>
+        <p class="quota-note">${escapeHtml(t('quotaSyncNote'))}</p>
+        </section>
+        <section class="view-panel ${state.view === 'context' ? 'active' : ''}">
+          <div class="workspace-panel">
+            <div class="context-card">
+              <h2>${escapeHtml(t('contextTitle'))}</h2>
+              <ul class="context-preview">
+                <li>Workspace: codex-gestion</li>
+                <li>Cuenta activa: ${escapeHtml(account.label)}</li>
+                <li>Estado de cuota: ${escapeHtml(state.scenario)}</li>
+                <li>Proximo paso: revisar la UI en preview antes de generar VSIX.</li>
+              </ul>
+              <div class="login-actions">
+                <button data-action="projectContext">${escapeHtml(t('contextOpened'))}</button>
+                <button class="secondary" data-view="overview">${escapeHtml(t('overview'))}</button>
+              </div>
+            </div>
+            ${activityPanel()}
+          </div>
+        </section>
+        <section class="view-panel ${state.view === 'diagnostics' ? 'active' : ''}">
+          <div class="workspace-panel">
+            <div class="context-card">
+              <h2>${escapeHtml(t('diagnosticsTitle'))}</h2>
+              <pre class="diagnostics-output">Codex Gestion diagnostics
+Extension version: 1.0.1-preview
+Preview scenario: ${state.scenario}
+Active account: ${account.label}
+Quota windows detected: ${data.quotas}
+Context source: ${data.context}
+Effective refresh interval: ${refreshCadence}
+
+No tokens, account identifiers, session contents, or file paths are included.</pre>
+            </div>
+            ${activityPanel()}
+          </div>
+        </section>
+        <div class="meta-row"><span>${escapeHtml(t('checked'))}: ${state.lastRefresh.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span><span>${escapeHtml(t('sessions'))}: 3</span><span>${escapeHtml(t('duration'))}: 42 ms</span></div>
+          </div>
+        </div>`;
+      document.getElementById('status-preview').innerHTML = statusPreview(data);
+      renderCharts();
+    }
+    function showDiagnostics() {
+      state.diagnosticsCount += 1;
+      const data = scenarios[state.scenario];
+      openModal(t('diagnosticsTitle'), `<pre class="diagnostics-output">Codex Gestion diagnostics
+Extension version: 1.0.1-preview
+Preview scenario: ${state.scenario}
+Active account: ${currentAccount().label}
+Codex login status: ${data.session}
+Quota windows detected: ${data.quotas}
+Context source: ${data.context}
+Saved encrypted credentials: ${data.credentials}
+Effective refresh interval: ${data.quotas ? '60 s' : '2 s'}
+Diagnostics opened: ${state.diagnosticsCount}
+
+No tokens, account identifiers, session contents, or file paths are included.</pre>`);
+    }
+    function showProjectContext() {
+      openModal(t('contextTitle'), `<ul class="context-preview">
+        <li>Workspace: codex-gestion</li>
+        <li>Active account: ${escapeHtml(currentAccount().label)}</li>
+        <li>Quota state: ${escapeHtml(state.scenario)}</li>
+        <li>Next step: revisar la UI en preview antes de generar VSIX.</li>
+      </ul>`);
+    }
+    function showAccounts() {
+      const active = currentAccount();
+      const card = account => `
+        <article class="manager-card ${state.activeAccount === account.id ? 'active' : ''}">
+          <div class="manager-main">
+            <div class="account-avatar">${escapeHtml(account.initials)}</div>
+            <div class="manager-copy">
+              <div class="manager-title">
+                <strong>${escapeHtml(account.label)}</strong>
+                <span class="badge ${state.activeAccount === account.id ? '' : 'muted'}">${escapeHtml(state.activeAccount === account.id ? t('activeNow') : t('ready'))}</span>
+              </div>
+              <span>${escapeHtml(account.email)}</span>
+              <span>CHATGPT - ${escapeHtml(account.plan)} - ${escapeHtml(state.activeAccount === account.id ? t('activeCredential') : t('savedCredential'))}</span>
+            </div>
+          </div>
+          <div class="manager-actions">
+            ${state.activeAccount !== account.id ? `<button class="secondary" data-switch-account="${escapeHtml(account.id)}">${escapeHtml(t('switchTo'))}</button>` : ''}
+            <button class="secondary" data-modal-action="rename">${escapeHtml(t('rename'))}</button>
+            <button class="danger-button" data-modal-action="delete" data-account-id="${escapeHtml(account.id)}">${escapeHtml(t('delete'))}</button>
+          </div>
+        </article>`;
+      openModal(t('accountDialogTitle'), `<div class="account-manager">
+        <section class="account-manager-summary">
+          <div>
+            <span>${escapeHtml(t('activeCredential'))}</span>
+            <strong>${escapeHtml(active.label)} - ${escapeHtml(active.plan)}</strong>
+          </div>
+          <button class="secondary" data-modal-action="cleanInactive">${escapeHtml(t('cleanInactive'))}</button>
+        </section>
+        <p class="subtitle">${escapeHtml(t('accountSummary'))}</p>
+        <div class="account-manager-list">
+          ${card({ id: 'work', initials: 'CP', label: 'Cuenta principal', email: 'principal@example.com', plan: 'PLUS' })}
+          ${card({ id: 'personal', initials: 'CS', label: 'Cuenta secundaria', email: 'secundaria@example.com', plan: 'PLUS' })}
+        </div>
+        <div class="modal-feedback" id="modal-feedback">${escapeHtml(t('simulated'))}</div>
+      </div>`);
+    }
+    function showAddAccountFlow(done = false) {
+      const steps = [
+        [t('loginStepOne'), t('loginStepOneText'), true],
+        [t('loginStepTwo'), t('loginStepTwoText'), done],
+        [t('loginStepThree'), t('loginStepThreeText'), done],
+        [t('loginStepFour'), t('loginStepFourText'), done]
+      ];
+      openModal(t('loginTitle'), `<div class="login-flow">
+        <section class="login-steps">
+          <p class="subtitle">${escapeHtml(t('loginIntro'))}</p>
+          ${steps.map(([title, text, complete], index) => `
+            <div class="login-step ${complete ? 'done' : index === 1 ? 'active' : ''}">
+              <div class="step-dot">${complete ? '&#10003;' : index + 1}</div>
+              <div><strong>${escapeHtml(title)}</strong><span>${escapeHtml(text)}</span></div>
+            </div>`).join('')}
+          <div class="login-actions">
+            <button data-login-action="external">${escapeHtml(t('openExternalLogin'))}</button>
+            <button class="secondary" data-login-action="complete">${escapeHtml(t('simulateLogin'))}</button>
+          </div>
+          <div class="modal-feedback" id="modal-feedback">${escapeHtml(done ? t('loginDone') : t('loginWaiting'))}</div>
+        </section>
+        <section class="browser-frame" aria-label="${escapeHtml(t('loginTitle'))}">
+          <div class="browser-bar">
+            <span class="browser-dot"></span><span class="browser-dot"></span><span class="browser-dot"></span>
+            <span class="browser-url">https://auth.openai.com/oauth/authorize</span>
+          </div>
+          <div class="browser-body">
+            <div class="browser-logo">CG</div>
+            <strong>${escapeHtml(done ? t('loginDone') : t('openExternalLogin'))}</strong>
+            <p>${escapeHtml(t('loginIframeNote'))}</p>
+          </div>
+        </section>
+      </div>`);
+    }
+    document.addEventListener('click', event => {
+      let skipRender = false;
+      const close = event.target.closest('[data-close-modal]');
+      if (close) document.getElementById('modal').close();
+      const scenario = event.target.closest('[data-scenario]');
+      const language = event.target.closest('[data-language]');
+      const switchAccount = event.target.closest('[data-switch-account]');
+      const action = event.target.closest('[data-action]');
+      const modalAction = event.target.closest('[data-modal-action]');
+      const loginAction = event.target.closest('[data-login-action]');
+      const view = event.target.closest('[data-view]');
+      if (scenario) state.scenario = scenario.dataset.scenario;
+      if (language) state.language = language.dataset.language;
+      if (view) {
+        state.view = view.dataset.view;
+      }
+      if (switchAccount) {
+        state.activeAccount = switchAccount.dataset.switchAccount;
+        logActivity(t('accountSwitched'), currentAccount().label, 'good');
+        showToast(t('accountSwitched'));
+        if (document.getElementById('modal').open) showAccounts();
+      }
+      if (modalAction?.dataset.modalAction === 'rename') {
+        const feedback = document.getElementById('modal-feedback');
+        if (feedback) feedback.textContent = t('accountRenamed');
+        logActivity(t('accountRenamed'), currentAccount().label, 'good');
+        showToast(t('accountRenamed'));
+      }
+      if (modalAction?.dataset.modalAction === 'delete') {
+        const feedback = document.getElementById('modal-feedback');
+        const isActive = modalAction.dataset.accountId === state.activeAccount;
+        if (feedback) feedback.textContent = isActive ? t('cannotDeleteActive') : t('accountDeleted');
+        logActivity(isActive ? t('cannotDeleteActive') : t('accountDeleted'), currentAccount().label, isActive ? 'warning' : 'danger');
+        showToast(isActive ? t('cannotDeleteActive') : t('accountDeleted'));
+      }
+      if (modalAction?.dataset.modalAction === 'cleanInactive') {
+        const feedback = document.getElementById('modal-feedback');
+        if (feedback) feedback.textContent = t('inactiveCleaned');
+        logActivity(t('inactiveCleaned'), t('accountDialogTitle'), 'warning');
+        showToast(t('inactiveCleaned'));
+      }
+      if (action?.dataset.action === 'refresh') {
+        state.lastRefresh = new Date();
+        const order = ['good', 'warning', 'danger'];
+        state.scenario = order[(order.indexOf(state.scenario) + 1) % order.length] || 'good';
+        logActivity(t('refreshed'), state.scenario, scenarios[state.scenario].tone);
+        showToast(t('refreshed'));
+        updateLiveOverview();
+        skipRender = true;
+      }
+      if (action?.dataset.action === 'projectContext') {
+        state.view = 'context';
+        showProjectContext();
+        logActivity(t('contextOpened'), 'PROJECT_CONTEXT.md', 'good');
+        showToast(t('contextOpened'));
+      }
+      if (action?.dataset.action === 'accounts' || action?.dataset.action === 'switchAccount') {
+        state.view = 'accounts';
+        showAccounts();
+      }
+      if (action?.dataset.action === 'addAccount') {
+        showAddAccountFlow(false);
+        logActivity(t('accountAdded'), t('loginWaiting'), 'warning');
+        showToast(t('accountAdded'));
+      }
+      if (loginAction?.dataset.loginAction === 'external') {
+        const feedback = document.getElementById('modal-feedback');
+        if (feedback) feedback.textContent = t('loginWaiting');
+        showToast(t('openExternalLogin'));
+      }
+      if (loginAction?.dataset.loginAction === 'complete') {
+        state.activeAccount = 'personal';
+        logActivity(t('loginDone'), currentAccount().label, 'good');
+        showAddAccountFlow(true);
+        showToast(t('loginDone'));
+      }
+      if (action?.dataset.action === 'openCodex') {
+        logActivity(t('codexOpened'), t('simulated'), 'good');
+        showToast(t('codexOpened'));
+      }
+      if (action?.dataset.action === 'diagnostics') {
+        state.view = 'diagnostics';
+        showDiagnostics();
+        logActivity(t('diagnosticsTitle'), t('simulated'), 'good');
+      }
+      if (action?.dataset.action === 'rename') {
+        logActivity(t('accountRenamed'), currentAccount().label, 'good');
+        showToast(t('accountRenamed'));
+      }
+      if (action?.dataset.action === 'delete') {
+        logActivity(t('accountDeleted'), t('simulated'), 'danger');
+        showToast(t('accountDeleted'));
+      }
+      if (event.target.closest('[data-theme-toggle]')) state.theme = state.theme === 'dark' ? 'light' : 'dark';
+      if (!skipRender && (scenario || language || switchAccount || view || event.target.closest('[data-theme-toggle]') || action?.dataset.action === 'accounts' || action?.dataset.action === 'switchAccount' || action?.dataset.action === 'diagnostics' || action?.dataset.action === 'openCodex' || action?.dataset.action === 'rename' || action?.dataset.action === 'delete' || loginAction?.dataset.loginAction === 'complete' || modalAction)) render();
+    });
+    render();
+    if (window.EventSource) {
+      const events = new EventSource('/__events');
+      events.addEventListener('reload', () => location.reload());
+    }
+  </script>
+</body>
+</html>
+
+
+
+
+
+

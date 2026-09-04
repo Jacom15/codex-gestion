@@ -4,11 +4,13 @@ const Module = require('module');
 
 const commands = new Map();
 const executedCommands = [];
+let availableCommands = ['chatgpt.openSidebar', 'chatgpt.reviewChanges'];
 const storage = new Map();
 const secrets = new Map();
 let languageSetting = 'auto';
 let dashboardPanel = null;
 let dashboardMessageHandler = null;
+let outputText = '';
 const statusItem = {
   text: '',
   tooltip: null,
@@ -19,6 +21,12 @@ const statusItem = {
   },
   dispose() {}
 };
+
+function decodedTooltipSvgs(markdown) {
+  return [...String(markdown || '').matchAll(/data:image\/svg\+xml;base64,([^"]+)/g)]
+    .map(match => Buffer.from(match[1], 'base64').toString('utf8'))
+    .join('\n');
+}
 
 class MarkdownString {
   constructor() {
@@ -33,7 +41,9 @@ class MarkdownString {
 
 const disposable = () => ({ dispose() {} });
 const vscodeMock = {
-  env: { language: 'es' },
+  env: {
+    language: 'es',
+  },
   MarkdownString,
   ThemeColor: class ThemeColor {
     constructor(id) {
@@ -54,7 +64,7 @@ const vscodeMock = {
       return disposable();
     },
     async getCommands() {
-      return ['chatgpt.openSidebar'];
+      return availableCommands;
     },
     async executeCommand(name) {
       executedCommands.push(name);
@@ -83,8 +93,8 @@ const vscodeMock = {
   window: {
     createOutputChannel() {
       return {
-        clear() {},
-        appendLine() {},
+        clear() { outputText = ''; },
+        appendLine(value) { outputText += `${value}\n`; },
         show() {},
         dispose() {}
       };
@@ -93,7 +103,9 @@ const vscodeMock = {
       return statusItem;
     },
     async showTextDocument() {},
-    async showInformationMessage() {},
+    async showInformationMessage(_message, ...items) {
+      return items[0];
+    },
     async showWarningMessage() {},
     async showQuickPick() {},
     createTerminal() {
@@ -181,10 +193,13 @@ const context = {
   assert.match(extension.__test.accountIdentityDetail({ label: 'Trabajo', email: 'work@example.com' }), /work@example.com/);
   assert.strictEqual(statusItem.shown, true);
   assert.notStrictEqual(statusItem.text, '');
-  assert.match(statusItem.tooltip.value, /Cuota de |Cuotas pendientes|Sin lectura visual todavia/);
-  assert.match(statusItem.tooltip.value, /(% libre[\s\S]*% usado|Sin lectura visual todavia|Cuotas pendientes)/);
-  assert.match(statusItem.tooltip.value, /(<img src="data:image\/svg\+xml;base64,|Sin lectura visual todavia|Cuotas pendientes)/);
-  assert.match(statusItem.tooltip.value, /(Cuota de|Cuotas pendientes)[\s\S]*---[\s\S]*Actualizado/);
+  const tooltipSvg = decodedTooltipSvgs(statusItem.tooltip.value);
+  assert.match(statusItem.tooltip.value, /<img src="data:image\/svg\+xml;base64,/);
+  assert.match(tooltipSvg, /Cuota de |Cuotas pendientes|Sin lectura visual todavia/);
+  assert.match(tooltipSvg, /(% libre|Sin lectura visual todavia|Cuotas pendientes)/);
+  assert.match(tooltipSvg, /Resumen/);
+  assert.match(tooltipSvg, /Actualizar/);
+  assert.match(tooltipSvg, /Codex Gestion/);
   assert.match(statusItem.tooltip.value, /command:codexGestion\.refresh/);
   assert.match(statusItem.tooltip.value, /command:codexGestion\.showDashboard/);
   assert.doesNotMatch(statusItem.tooltip.value, /command:codexGestion\.switchAccount/);
@@ -203,19 +218,31 @@ const context = {
   await commands.get('codexGestion.showDashboard')();
   assert.ok(dashboardPanel);
   assert.match(dashboardPanel.webview.html, /Panel de uso de Codex/);
+  assert.match(dashboardPanel.webview.html, /class="rail"/);
+  assert.match(dashboardPanel.webview.html, /data-action="setView" data-view="accounts"/);
+  assert.match(dashboardPanel.webview.html, /id="accounts-modal"/);
+  assert.match(dashboardPanel.webview.html, /data-action="openAccountsModal"/);
   assert.doesNotMatch(dashboardPanel.webview.html, /Empieza con Codex Gestion/);
   assert.match(dashboardPanel.webview.html, /aria-label="Idioma"/);
   assert.match(dashboardPanel.webview.html, /data-action="setLanguage" data-language="auto" aria-pressed="true"/);
   assert.match(dashboardPanel.webview.html, /data-action="setLanguage" data-language="es"/);
   assert.match(dashboardPanel.webview.html, /data-action="setLanguage" data-language="en"/);
   assert.match(dashboardPanel.webview.html, /Gestion de cuentas/);
+  assert.doesNotMatch(dashboardPanel.webview.html, /\$\(git-pull-request\)/);
   assert.match(dashboardPanel.webview.html, /Contexto proyecto/);
+  assert.doesNotMatch(dashboardPanel.webview.html, /health-strip/);
+  assert.doesNotMatch(dashboardPanel.webview.html, /Que significa cada dato/);
   assert.match(dashboardPanel.webview.html, /chart\.umd\.min\.js/);
   assert.match(dashboardPanel.webview.html, /metric-chart/);
+  commands.get('codexGestion.showDiagnostics')();
+  assert.strictEqual(commands.has('codexGestion.showDiagnostics'), true);
+  assert.match(outputText, /Operational health|Salud operativa|Saved account profiles/);
+  assert.match(outputText, /Quota windows detected/);
   assert.doesNotMatch(dashboardPanel.webview.html, /Contexto del chat detectado/);
   assert.match(dashboardPanel.webview.html, /Cambiar cuenta/);
   assert.match(dashboardPanel.webview.html, /Agregar cuenta/);
-  assert.match(dashboardPanel.webview.html, /data-action="accountCard"/);
+  assert.doesNotMatch(dashboardPanel.webview.html, /data-action="accountCard"/);
+  assert.match(dashboardPanel.webview.html, /data-action="switchStoredAccount"/);
   assert.match(dashboardPanel.webview.html, /class="account-avatar"/);
   assert.match(dashboardPanel.webview.html, /--account-color:/);
   assert.match(dashboardPanel.webview.html, /Trabajo/);
@@ -243,6 +270,8 @@ const context = {
   assert.match(dashboardPanel.webview.html, /Panel de uso de Codex/);
   assert.match(dashboardPanel.webview.html, /data-action="setLanguage" data-language="es" aria-pressed="true"/);
   assert.doesNotMatch(dashboardPanel.webview.html, /Codex usage panel/);
+  await dashboardMessageHandler({ action: 'setView', view: 'diagnostics' });
+  assert.match(dashboardPanel.webview.html, /view-panel active[\s\S]*Codex Gestion diagnostics/);
 
   extension.deactivate();
   for (const item of context.subscriptions) {

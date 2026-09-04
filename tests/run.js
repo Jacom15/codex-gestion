@@ -19,8 +19,10 @@ assert.strictEqual(__test.availablePercent(23), 77);
 assert.strictEqual(__test.availablePercent(150), 0);
 assert.strictEqual(__test.availablePercent(null), null);
 assert.strictEqual(__test.availablePercent(undefined), null);
-assert.match(__test.formatContextQuota('Cuota 5 h', null), /pendiente de recoger datos/i);
-assert.match(__test.formatContextQuota('Cuota 5 h', { used_percent: 40, resets_at: Math.floor(Date.now() / 1000) - 60 }), /dato puede estar antiguo|vencida|stale/i);
+assert.strictEqual(__test.hasQuotaReadings({ rateLimits: { limit_id: 'codex', plan_type: 'plus' } }), false);
+assert.strictEqual(__test.hasQuotaReadings({ rateLimits: { primary: { used_percent: 25, window_minutes: 300 } } }), true);
+assert.match(__test.formatContextQuota('Cuota local', null), /pendiente de recoger datos/i);
+assert.match(__test.formatContextQuota('Cuota local', { used_percent: 40, resets_at: Math.floor(Date.now() / 1000) - 60 }), /dato puede estar antiguo|vencida|stale/i);
 assert.doesNotMatch(__test.sanitizeContextExcerpt('token sk-1234567890abcdef and access_token=secret-value'), /sk-1234567890abcdef|secret-value/);
 assert.strictEqual(__test.getContextPercent({
   lastTokenUsage: { total_tokens: 50 },
@@ -94,6 +96,7 @@ assert.strictEqual(merged.contextUsed, 30);
 assert.strictEqual(merged.rateLimitFingerprint, 'new');
 
 const dynamicLimits = {
+  account_id: 'account-a',
   plan_type: 'pro',
   quotas: [
     { name: 'long', used_percent: 20, window_minutes: 10080 },
@@ -103,8 +106,11 @@ const dynamicLimits = {
 const dynamicWindows = __test.quotaWindowsFromRateLimits(dynamicLimits);
 assert.strictEqual(dynamicWindows[0].key, 'short');
 assert.strictEqual(dynamicWindows[1].key, 'long');
+assert.strictEqual(__test.quotaWindowsFromRateLimits({ windows: dynamicWindows }).length, 2);
 assert.strictEqual(__test.quotaWindowLabel(dynamicWindows[0]), 'short');
-assert.strictEqual(__test.quotaWindowLabel({ window_minutes: 180 }), '3h');
+assert.strictEqual(__test.quotaWindowLabel({ window_minutes: 180 }), '3 h');
+assert.match(__test.quotaWindowHint({ window_minutes: 10080 }, 0, 1), /Ventana detectada|Detected window/);
+assert.match(__test.quotaWindowExplainTitle({ window_minutes: 10080 }, 0, 1), /Ventana de cuota detectada|Detected quota window/);
 const dynamicMerged = __test.mergeAccountSnapshot({}, {
   rateLimits: dynamicLimits,
   rateLimitFingerprint: __test.rateLimitFingerprint(dynamicLimits)
@@ -118,11 +124,20 @@ assert.strictEqual(plusPolicy.plan, 'plus');
 assert.strictEqual(plusPolicy.canBuyCredits, true);
 assert.strictEqual(plusPolicy.isLow, true);
 assert.strictEqual(__test.effectiveRefreshIntervalSeconds(30, plusPolicy), 60);
+const healthySignals = __test.operationalHealth(
+  { rateLimits: { primary: { used_percent: 35 }, secondary: { used_percent: 20 } }, contextSource: 'workspace' },
+  { state: 'ok', message: 'ok' },
+  [{ id: 'profile-a', credentialsStored: true }]
+);
+assert.match(healthySignals.title, /Salud operativa|Operational health/);
+assert.strictEqual(healthySignals.items.find(item => item.label === 'Cuotas' || item.label === 'Quotas').value, '2');
+assert.strictEqual(healthySignals.items.find(item => item.label === 'Credenciales' || item.label === 'Credentials').value, '1');
 const freePolicy = __test.planPolicyFrom({ rateLimits: { plan_type: 'free' } }, null);
 assert.strictEqual(freePolicy.shouldSuggestUpgrade, true);
 assert.strictEqual(__test.effectiveRefreshIntervalSeconds(30, freePolicy), 45);
 const workspacePolicy = __test.planPolicyFrom({ rateLimits: { plan_type: 'enterprise' } }, null);
 assert.strictEqual(workspacePolicy.adminManaged, true);
+assert.strictEqual(workspacePolicy.canBuyCredits, true);
 const pendingPolicy = __test.planPolicyFrom(null, null);
 assert.strictEqual(pendingPolicy.isPending, true);
 assert.strictEqual(__test.effectiveRefreshIntervalSeconds(30, pendingPolicy), 15);
@@ -185,6 +200,48 @@ assert.strictEqual(__test.statsBelongsToAnotherProfile('profile-b', [{
   id: 'profile-a',
   snapshot: { rateLimitFingerprint: matching.rateLimitFingerprint }
 }], matching), true);
+const genericFingerprint = __test.rateLimitFingerprint({ limit_id: 'codex', primary: { used_percent: 10 } });
+assert.strictEqual(__test.statsBelongsToAnotherProfile('profile-b', [{
+  id: 'profile-a',
+  snapshot: { rateLimitFingerprint: genericFingerprint }
+}], {
+  rateLimits: { limit_id: 'codex', primary: { used_percent: 10 } },
+  rateLimitFingerprint: genericFingerprint
+}), false);
+const genericMerged = __test.mergeAccountSnapshot({ rateLimitFingerprint: 'old-generic' }, {
+  rateLimits: { limit_id: 'codex', primary: { used_percent: 12 } },
+  rateLimitFingerprint: genericFingerprint
+});
+assert.strictEqual(genericMerged.rateLimitFingerprint, '');
+assert.strictEqual(genericMerged.primaryUsed, null);
+const preservedGenericMerged = __test.mergeAccountSnapshot({ primaryUsed: 44, rateLimitFingerprint: '' }, {
+  rateLimits: { limit_id: 'codex', primary: { used_percent: 12 } },
+  rateLimitFingerprint: genericFingerprint
+});
+assert.strictEqual(preservedGenericMerged.primaryUsed, 44);
+const genericDisplayMerged = __test.mergeAccountSnapshot({ rateLimitFingerprint: 'old-generic' }, {
+  rateLimits: { limit_id: 'codex', primary: { used_percent: 12 } },
+  rateLimitFingerprint: genericFingerprint
+}, { includeGenericQuotas: true });
+assert.strictEqual(genericDisplayMerged.rateLimitFingerprint, '');
+assert.strictEqual(genericDisplayMerged.primaryUsed, 12);
+assert.strictEqual(genericDisplayMerged.quotaSource, 'active-session');
+assert.strictEqual(__test.canAttributeStatsToActiveAccount(
+  { hasCredentials: true, since: Date.parse('2026-09-03T11:00:00.000Z') },
+  { timestamp: '2026-09-03T11:00:01.000Z', rateLimits: { limit_id: 'codex', primary: { used_percent: 12 } } }
+), true);
+assert.strictEqual(__test.canAttributeStatsToActiveAccount(
+  { hasCredentials: true, since: Date.parse('2026-09-03T11:00:00.000Z') },
+  { timestamp: '2026-09-03T10:59:00.000Z', rateLimits: { limit_id: 'codex', primary: { used_percent: 12 } } }
+), false);
+assert.deepStrictEqual(__test.scrubDuplicatedGenericQuotaSnapshots([
+  { id: 'active', snapshot: { primaryUsed: 61, secondaryUsed: 56, quotaWindows: [{ used_percent: 39 }, { used_percent: 44 }], rateLimitFingerprint: '' } },
+  { id: 'inactive', snapshot: { primaryUsed: 61, secondaryUsed: 56, quotaWindows: [{ used_percent: 39 }, { used_percent: 44 }], rateLimitFingerprint: '' } }
+], 'active')[1].snapshot.quotaWindows, []);
+assert.strictEqual(__test.scrubDuplicatedGenericQuotaSnapshots([
+  { id: 'active', snapshot: { primaryUsed: 61, quotaWindows: [{ used_percent: 39 }], quotaSource: 'active-session', rateLimitFingerprint: '' } },
+  { id: 'inactive', snapshot: { primaryUsed: 61, quotaWindows: [{ used_percent: 39 }], quotaSource: 'active-session', rateLimitFingerprint: '' } }
+], 'active')[1].snapshot.primaryUsed, 61);
 const conversationPath = path.join(tempDir, 'conversation.jsonl');
 fs.writeFileSync(conversationPath, [
   JSON.stringify({ timestamp: '2026-06-15T12:00:00.000Z', type: 'user_message', payload: { content: 'Tenemos que mejorar el contexto entre cuentas.' } }),

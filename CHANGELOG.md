@@ -1,20 +1,30 @@
 # Changelog
 
-## 0.0.6 - 2026-07-02
+## 1.0.1 - 2026-09-04
 
-- Added an in-panel language selector for Auto, Spanish, and English.
-- Added first-run onboarding with direct actions for Codex, accounts, and project context.
-- Added `npm run release:prepare` to bump, test, package, and validate VSIX releases safely.
-- Added smarter project handoff context for continuing work in another chat or Codex account.
-- Added ROADMAP-driven next steps, recent Git commits, detected project identity, and local decision signals to generated project context.
-- Added a clear `AGENTS.md` note explaining what Codex can read automatically versus manual handoff context.
-- Added clearer account differentiation with local color accents, initials, visible aliases, and secondary email/plan details.
-- Added optional sanitized local session excerpts to `.codex-gestion/PROJECT_CONTEXT.md` through `codexGestion.projectContext.includeSessionExcerpts`.
-- Added Git status and clearer continuation guidance to generated project context.
-- Improved the compact status bar text so it shows available quota plus time left to reset, instead of the confusing `5h` window label.
-- Improved status-bar tooltip quota summaries with available percent, reset timing, and used percent.
-- Fixed the Marketplace/extension logo PNG so rounded corners are transparent instead of white.
-- Fixed stale reset wording so old local quota data does not show confusing `in now` / `dentro de now` text.
+- Fixed status-bar tooltip actions so Overview and Refresh are clickable again.
+- Kept the redesigned vertical tooltip layout while preserving command links.
+
+## 1.0.0 - 2026-09-04
+
+- Redesigned the dashboard into focused Overview, Accounts, Context, and Diagnostics sections.
+- Added an operational health summary for local session status, quota windows, context source, saved credentials, and refresh cadence.
+- Added dynamic quota windows so the dashboard follows the durations Codex records locally instead of assuming fixed limits.
+- Added account-aware quota snapshots: each saved account keeps its last attributed quota reading, while pending accounts stay clearly marked.
+- Fixed account switching so generic Codex quota readings no longer overwrite other saved accounts.
+- Added short-lived fast polling after account switches so new quota readings appear sooner once Codex writes them.
+- Improved dashboard quota refresh so charts update in place instead of rebuilding from zero.
+- Updated the status-bar hover with compact visual quota cards, action links, and a calmer footer.
+- Expanded sanitized diagnostics with saved profile counts, encrypted credential counts, quota state, context source, and health signals.
+- Refreshed Marketplace screenshots and README copy for the 1.0.0 release.
+- Updated quota handling to render the local Codex quota windows dynamically by plan data instead of assuming fixed durations.
+- Refreshed Marketplace README content with a clearer local-only privacy section, larger dark-mode screenshots, and a focused dashboard hero.
+- Updated tests and smoke checks for dynamic quota labels, workspace plan policy, and account-aware rendering.
+- Removed the experimental Codex controls/skills hub because those private Codex chat actions are not reliably callable from another VS Code extension.
+
+## 0.0.6 - 2026-07-27
+
+- Previous public Marketplace release.
 
 ## 0.0.3 - 2026-07-01
 

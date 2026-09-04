@@ -54,7 +54,7 @@ function planPolicyFrom(stats, profile) {
     family,
     source,
     label: rawPlan ? String(rawPlan).toUpperCase() : 'PENDING',
-    canBuyCredits: family === 'selfServe',
+    canBuyCredits: family === 'selfServe' || family === 'workspace',
     shouldSuggestUpgrade: family === 'starter',
     adminManaged: family === 'workspace',
     isPending: source === 'pending',

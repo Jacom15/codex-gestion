@@ -4,7 +4,9 @@ dist/
 .codex-gestion/
 .vscode/
 .tmp-chrome-*/
+.tmp-chrome/
 *.vsix
+*.mp4
 *.log
 .env
 .env.*
