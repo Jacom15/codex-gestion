@@ -51,7 +51,9 @@ function injectLiveReload(filePath) {
   if (!fs.existsSync(filePath)) return;
   const html = fs.readFileSync(filePath, 'utf8');
   if (html.includes('/__events')) return;
-  const script = `<script>(()=>{const e=new EventSource('/__events');e.addEventListener('reload',()=>location.reload());})();</script>`;
+  const nonce = html.match(/<script nonce=\"([^\"]+)\"/)?.[1] || html.match(/<style nonce=\"([^\"]+)\"/)?.[1] || null;
+  const nonceAttr = nonce ? ` nonce=\"${nonce}\"` : '';
+  const script = `<script${nonceAttr}>(()=>{const e=new EventSource('/__events');e.addEventListener('reload',()=>location.reload());})();</script>`;
   fs.writeFileSync(
     filePath,
     html.includes('</body>') ? html.replace('</body>', `${script}</body>`) : `${html}${script}`,
