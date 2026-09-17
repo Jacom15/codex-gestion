@@ -2,7 +2,9 @@ node_modules/
 dist/
 .codex-local-stats/
 .codex-gestion/
-.vscode/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
 .tmp-chrome-*/
 .tmp-chrome/
 *.vsix
@@ -10,3 +12,5 @@ dist/
 *.log
 .env
 .env.*
+
+preview/generated/

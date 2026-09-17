@@ -1,0 +1,18 @@
+services:
+  preview:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    working_dir: /workspace
+    command: ["node", "scripts/dev-container.js"]
+    environment:
+      PORT: "5177"
+    ports:
+      - "5177:5177"
+    volumes:
+      - .:/workspace
+      - codex_gestion_node_modules:/workspace/node_modules
+    restart: unless-stopped
+
+volumes:
+  codex_gestion_node_modules:
