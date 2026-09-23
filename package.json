@@ -2,16 +2,14 @@
   "name": "codex-gestion",
   "displayName": "Codex Gestion",
   "description": "%extension.description%",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "publisher": "jacom15",
   "icon": "media/codex-gestion-logo.png",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": [
-    "Visualization"
-  ],
+  "categories": ["Visualization"],
   "activationEvents": [
     "onStartupFinished",
     "onCommand:codexGestion.refresh",
@@ -27,42 +25,15 @@
   "main": "./extension.js",
   "contributes": {
     "commands": [
-      {
-        "command": "codexGestion.refresh",
-        "title": "%command.refresh%"
-      },
-      {
-        "command": "codexGestion.showDetails",
-        "title": "%command.showDetails%"
-      },
-      {
-        "command": "codexGestion.showDashboard",
-        "title": "%command.showDashboard%"
-      },
-      {
-        "command": "codexGestion.manageAccounts",
-        "title": "%command.manageAccounts%"
-      },
-      {
-        "command": "codexGestion.switchAccount",
-        "title": "%command.switchAccount%"
-      },
-      {
-        "command": "codexGestion.addAccount",
-        "title": "%command.addAccount%"
-      },
-      {
-        "command": "codexGestion.openProjectContext",
-        "title": "%command.openProjectContext%"
-      },
-      {
-        "command": "codexGestion.openCodex",
-        "title": "%command.openCodex%"
-      },
-      {
-        "command": "codexGestion.showDiagnostics",
-        "title": "%command.showDiagnostics%"
-      }
+      {"command":"codexGestion.refresh","title":"%command.refresh%"},
+      {"command":"codexGestion.showDetails","title":"%command.showDetails%"},
+      {"command":"codexGestion.showDashboard","title":"%command.showDashboard%"},
+      {"command":"codexGestion.manageAccounts","title":"%command.manageAccounts%"},
+      {"command":"codexGestion.switchAccount","title":"%command.switchAccount%"},
+      {"command":"codexGestion.addAccount","title":"%command.addAccount%"},
+      {"command":"codexGestion.openProjectContext","title":"%command.openProjectContext%"},
+      {"command":"codexGestion.openCodex","title":"%command.openCodex%"},
+      {"command":"codexGestion.showDiagnostics","title":"%command.showDiagnostics%"}
     ],
     "configuration": {
       "title": "Codex Gestion",
@@ -76,21 +47,13 @@
         "codexGestion.language": {
           "type": "string",
           "default": "auto",
-          "enum": [
-            "auto",
-            "es",
-            "en"
-          ],
-          "enumDescriptions": [
-            "%config.language.auto%",
-            "%config.language.es%",
-            "%config.language.en%"
-          ],
+          "enum": ["auto","es","en"],
+          "enumDescriptions": ["%config.language.auto%","%config.language.es%","%config.language.en%"],
           "description": "%config.language%"
         },
         "codexGestion.projectContext.includeSessionExcerpts": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%config.projectContext.includeSessionExcerpts%"
         }
       }
@@ -100,35 +63,18 @@
     "clean": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/clean.ps1",
     "package": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package.ps1",
     "preview": "node scripts/preview.js",
+    "preview:render": "node scripts/render-preview.js",
+    "release:verify": "node scripts/verify-release.js",
     "install:local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install.ps1",
-    "test": "node tests/run.js && node tests/smoke.js",
+    "test": "node tests/run.js && node tests/rate-limits.js && node tests/smoke.js",
     "publish:marketplace": "vsce publish --baseContentUrl https://github.com/Jacom15/codex-gestion/blob/main --baseImagesUrl https://raw.githubusercontent.com/Jacom15/codex-gestion/main",
     "release:prepare": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release.ps1"
   },
-  "devDependencies": {
-    "@vscode/vsce": "^3.6.2"
-  },
-  "dependencies": {
-    "chart.js": "^4.5.1"
-  },
-  "keywords": [
-    "codex",
-    "usage",
-    "quota",
-    "rate-limit",
-    "accounts",
-    "dashboard"
-  ],
-  "galleryBanner": {
-    "color": "#151515",
-    "theme": "dark"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Jacom15/codex-gestion.git"
-  },
-  "bugs": {
-    "url": "https://github.com/Jacom15/codex-gestion/issues"
-  },
+  "devDependencies": {"@vscode/vsce":"^3.6.2"},
+  "dependencies": {"chart.js":"^4.5.1"},
+  "keywords": ["codex","usage","credits","quota","rate-limit","accounts","dashboard"],
+  "galleryBanner": {"color":"#151515","theme":"dark"},
+  "repository": {"type":"git","url":"https://github.com/Jacom15/codex-gestion.git"},
+  "bugs": {"url":"https://github.com/Jacom15/codex-gestion/issues"},
   "homepage": "https://github.com/Jacom15/codex-gestion#readme"
 }

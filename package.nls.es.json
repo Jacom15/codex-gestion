@@ -1,5 +1,5 @@
 {
-  "extension.description": "Panel local para visualizar cuotas, sesiones y cuentas de Codex en VS Code.",
+  "extension.description": "Panel local para visualizar cuotas, créditos, sesiones y cuentas de Codex en VS Code.",
   "command.refresh": "Codex Gestion: Actualizar",
   "command.showDetails": "Codex Gestion: Abrir panel",
   "command.showDashboard": "Codex Gestion: Abrir panel visual",
@@ -9,10 +9,10 @@
   "command.openProjectContext": "Codex Gestion: Abrir contexto del proyecto",
   "command.openCodex": "Codex Gestion: Abrir Codex / Iniciar sesion",
   "command.showDiagnostics": "Codex Gestion: Ver diagnostico",
-  "config.refreshIntervalSeconds": "Cada cuantos segundos se actualizan los datos locales de Codex.",
+  "config.refreshIntervalSeconds": "Intervalo solicitado en segundos. La política del plan puede ampliarlo; las consultas automáticas directas de cuota se limitan a una cada 30 segundos.",
   "config.language": "Idioma usado por la interfaz de Codex Gestion.",
   "config.language.auto": "Usar el idioma de VS Code.",
   "config.language.es": "Espanol",
   "config.language.en": "Ingles",
-  "config.projectContext.includeSessionExcerpts": "Incluir extractos recientes de sesiones locales de Codex en el archivo de contexto del proyecto. Todo queda local, pero parte del chat puede escribirse en .codex-gestion/PROJECT_CONTEXT.md."
+  "config.projectContext.includeSessionExcerpts": "Incluir extractos recientes de sesiones locales de Codex en el archivo de contexto del proyecto. Desactivado por defecto; al activarlo puede escribirse texto saneado del chat en .codex-gestion/PROJECT_CONTEXT.md."
 }

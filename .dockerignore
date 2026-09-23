@@ -1,0 +1,14 @@
+.git
+.github
+.vscode
+node_modules
+dist
+preview/generated
+.codex-gestion
+.codex-local-stats
+.tmp-*
+*.vsix
+*.log
+*.mp4
+.env
+.env.*

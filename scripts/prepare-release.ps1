@@ -21,10 +21,10 @@ function Invoke-Checked($FilePath, [string[]]$Arguments) {
 }
 
 function Replace-InFile($Path, [scriptblock]$Edit) {
-  $text = Get-Content -Raw -LiteralPath $Path
+  $text = Get-Content -Raw -LiteralPath $Path -Encoding UTF8
   $updated = & $Edit $text
   if ($null -eq $updated) { throw "Edit returned null for $Path" }
-  Set-Content -LiteralPath $Path -Value $updated -NoNewline
+  [System.IO.File]::WriteAllText($Path, $updated, (New-Object System.Text.UTF8Encoding($false)))
 }
 
 function Update-ReadmeLikeFile($Path, $OldVersion, $NewVersion) {
@@ -33,7 +33,8 @@ function Update-ReadmeLikeFile($Path, $OldVersion, $NewVersion) {
     $text = $text.Replace("codex-gestion-$OldVersion.vsix", "codex-gestion-$NewVersion.vsix")
     $text = $text.Replace("version-$OldVersion-", "version-$NewVersion-")
     $text = $text.Replace("New in $OldVersion", "New in $NewVersion")
-    $text = $text.Replace("Nuevo en $OldVersion", "Nuevo en $NewVersion")
+    $text = $text.Replace("Novedades de la $OldVersion", "Novedades de la $NewVersion")
+    $text = $text.Replace("media/$OldVersion/", "media/$NewVersion/")
     return $text
   }
 }
@@ -52,11 +53,8 @@ function Update-Changelog($Path, $NewVersion, [string[]]$ReleaseNotes) {
     $body = ($notesToUse | ForEach-Object { "- $_" }) -join [Environment]::NewLine
     $entry = "$heading" + [Environment]::NewLine + [Environment]::NewLine + $body + [Environment]::NewLine + [Environment]::NewLine
 
-    if ($text.StartsWith("# Changelog")) {
-      $firstBreak = $text.IndexOf([Environment]::NewLine + [Environment]::NewLine)
-      if ($firstBreak -ge 0) {
-        return $text.Substring(0, $firstBreak + 2 * [Environment]::NewLine.Length) + $entry + $text.Substring($firstBreak + 2 * [Environment]::NewLine.Length)
-      }
+    if ($text -match '^# Changelog\r?\n\r?\n') {
+      return "# Changelog`n`n" + $entry + ($text -replace '^# Changelog\r?\n\r?\n', '')
     }
     return "# Changelog" + [Environment]::NewLine + [Environment]::NewLine + $entry + $text
   }
@@ -96,34 +94,12 @@ try {
     Update-ReadmeLikeFile (Join-Path $root "README.md") $oldVersion $Version
     Update-ReadmeLikeFile (Join-Path $root "INSTALL.md") $oldVersion $Version
     Update-ReadmeLikeFile (Join-Path $root "PUBLISHING.md") $oldVersion $Version
+    Update-ReadmeLikeFile (Join-Path $root "RELEASES.md") $oldVersion $Version
     Update-Changelog (Join-Path $root "CHANGELOG.md") $Version $Notes
   }
 
-  Invoke-Checked "npm" @("test")
-
-  if (-not $SkipPackage) {
-    $vsceBin = Join-Path $root "node_modules\.bin\vsce.cmd"
-    if (-not (Test-Path -LiteralPath $vsceBin)) {
-      throw "Missing dependencies. Run npm install before preparing a release."
-    }
-    if (-not (Test-Path -LiteralPath $dist)) {
-      New-Item -ItemType Directory -Path $dist | Out-Null
-    } else {
-      Get-ChildItem -LiteralPath $dist -Filter '*.vsix' -File | Remove-Item -Force
-    }
-    Invoke-Checked $vsceBin @(
-      'package',
-      '--baseContentUrl', 'https://github.com/Jacom15/codex-gestion/blob/main',
-      '--baseImagesUrl', 'https://raw.githubusercontent.com/Jacom15/codex-gestion/main',
-      '--out', $dist
-    )
-    $vsix = Join-Path $dist "codex-gestion-$Version.vsix"
-    if (-not (Test-Path -LiteralPath $vsix)) {
-      throw "Expected VSIX was not created: $vsix"
-    }
-    $item = Get-Item -LiteralPath $vsix
-    Write-Host "Release package ready: $($item.FullName) ($($item.Length) bytes)"
-  }
+  if ($SkipPackage) { Invoke-Checked "npm" @("test") }
+  else { Invoke-Checked "npm" @("run", "package") }
 
   Write-Host "Release $Version prepared successfully."
 }

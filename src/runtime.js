@@ -54,6 +54,8 @@ const {
   readSessionMeta
 } = require('./sessions/reader');
 const { buildCodexLoginCommand, findCodexExecutable } = require('./codex/cli');
+const { createRateLimitReader, readingMatchesAccount } = require('./codex/rate-limits');
+const rateLimitReader = createRateLimitReader();
 const {
   effectiveRefreshIntervalSeconds,
   planPolicyFrom
@@ -95,9 +97,12 @@ let latestAuthStatus = {
   message: 'Sesion no comprobada todavia.'
 };
 let postSwitchRefreshTimers = [];
+let liveQuotaCache = null;
+let liveQuotaAttempt = null;
 
 function normalizeFsPath(value) {
-  return path.resolve(String(value || '')).replace(/[\\/]+$/, '').toLowerCase();
+  const normalized = path.resolve(String(value || '')).replace(/[\\/]+$/, '');
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
 }
 
 function isPathInside(candidate, root) {
@@ -639,6 +644,95 @@ function planPolicyText(policy = currentPlanPolicy) {
     action: es ? 'Seguir cuotas locales' : 'Follow local quotas'
   };
 }
+function formatCreditBalanceValue(raw) {
+  const text = String(raw ?? '').trim();
+  if (!text) return '';
+  const numeric = Number(text);
+  if (!Number.isFinite(numeric)) return text;
+  return new Intl.NumberFormat(languageTag(), { maximumFractionDigits: 2 }).format(numeric);
+}
+
+function hasExhaustedQuota(stats) {
+  return quotaWindowsFromRateLimits(stats?.rateLimits)
+    .some(limit => Number(limit?.used_percent) >= 100);
+}
+
+function creditStatusFromStats(stats, policy = currentPlanPolicy) {
+  const es = languageTag() === 'es';
+  const credits = stats?.rateLimits?.credits;
+  const exhausted = hasExhaustedQuota(stats);
+  const known = credits && typeof credits.has_credits === 'boolean' && typeof credits.unlimited === 'boolean';
+
+  if (!known) {
+    return {
+      state: 'unknown',
+      tone: 'muted',
+      title: es ? 'Creditos sin comprobar' : 'Credits not confirmed',
+      value: '--',
+      detail: policy?.canBuyCredits
+        ? (es
+          ? 'Este plan puede usar creditos, pero Codex no ha informado todavia del saldo de esta cuenta.'
+          : 'This plan can use credits, but Codex has not reported this account balance yet.')
+        : (es ? 'Codex no ha informado de creditos para esta cuenta.' : 'Codex has not reported credits for this account.'),
+      action: exhausted
+        ? (es ? 'Actualiza para volver a comprobar el saldo' : 'Refresh to check the balance again')
+        : (es ? 'Se mostraran cuando Codex los informe' : 'They will appear when Codex reports them')
+    };
+  }
+
+  if (credits.unlimited) {
+    return {
+      state: 'unlimited',
+      tone: 'good',
+      title: es ? 'Creditos ilimitados' : 'Unlimited credits',
+      value: es ? 'Ilimitados' : 'Unlimited',
+      detail: exhausted
+        ? (es
+          ? 'La cuota incluida esta agotada, pero la cuenta dispone de creditos ilimitados.'
+          : 'Included usage is exhausted, but this account has unlimited credits.')
+        : (es
+          ? 'Codex informa que esta cuenta dispone de creditos ilimitados.'
+          : 'Codex reports unlimited credits for this account.'),
+      action: es ? 'Saldo informado por Codex' : 'Balance reported by Codex'
+    };
+  }
+
+  if (credits.has_credits) {
+    const balance = formatCreditBalanceValue(credits.balance);
+    return {
+      state: 'available',
+      tone: 'good',
+      title: es ? 'Creditos disponibles' : 'Credits available',
+      value: balance ? `${balance} ${es ? 'creditos' : 'credits'}` : (es ? 'Disponibles' : 'Available'),
+      detail: exhausted
+        ? (es
+          ? 'Una cuota incluida esta agotada. Codex puede continuar usando los creditos disponibles de la cuenta.'
+          : 'An included quota is exhausted. Codex can continue with available account credits.')
+        : (es
+          ? 'La cuenta tiene creditos disponibles si una cuota incluida se agota.'
+          : 'This account has credits available if included usage runs out.'),
+      action: es ? 'Saldo informado por Codex' : 'Balance reported by Codex'
+    };
+  }
+
+  return {
+    state: 'empty',
+    tone: exhausted ? 'danger' : 'warning',
+    title: es ? 'Sin creditos disponibles' : 'No credits available',
+    value: '0',
+    detail: exhausted
+      ? (es
+        ? 'Una cuota incluida esta agotada y Codex no informa de creditos disponibles para continuar.'
+        : 'An included quota is exhausted and Codex reports no credits available to continue.')
+      : (es
+        ? 'Codex no informa de creditos disponibles para esta cuenta.'
+        : 'Codex reports no credits available for this account.'),
+    action: policy?.canBuyCredits
+      ? (es ? 'Puedes anadir creditos desde Codex Settings > Usage' : 'You can add credits from Codex Settings > Usage')
+      : (es ? 'Espera a la renovacion de la cuota' : 'Wait for quota reset')
+  };
+}
+
 function planDisplay(stats) {
   const plan = stats?.rateLimits?.plan_type
     ? String(stats.rateLimits.plan_type).toUpperCase()
@@ -1298,6 +1392,53 @@ async function performRefresh(showNotification) {
         latestStats = snapshotStats;
       }
     }
+
+    // Read the active account directly so credits and current quotas do not depend
+    // on waiting for a new chat/session JSONL event.
+    if (account.hasCredentials && account.id) {
+      const now = Date.now();
+      const canRead =
+        showNotification ||
+        !liveQuotaAttempt ||
+        liveQuotaAttempt.profileId !== profileId ||
+        now - liveQuotaAttempt.at >= 30000;
+
+      if (canRead) {
+        liveQuotaAttempt = { profileId, at: now };
+        const reading = await rateLimitReader.read(extensionContext.extension.packageJSON.version);
+        const current = readCurrentAccount();
+
+        if (!current.hasCredentials || accountProfileId(current) !== profileId) {
+          latestStats = null;
+          liveQuotaCache = null;
+          return;
+        }
+
+        liveQuotaCache = readingMatchesAccount(reading, account, current)
+          ? { profileId, reading }
+          : null;
+      }
+
+      if (liveQuotaCache?.profileId === profileId) {
+        const { reading } = liveQuotaCache;
+        latestStats = {
+          ...(latestStats || {}),
+          timestamp: new Date(reading.checkedAt).toISOString(),
+          rateLimits: {
+            ...reading.rateLimits,
+            account_id: reading.rateLimits.account_id || profileId,
+            plan_type: reading.rateLimits.plan_type || reading.account.planType || null
+          },
+          rateLimitFingerprint: `account:${profileId}`,
+          quotaSource: 'app-server',
+          quotaCheckedAt: reading.checkedAt,
+          isSnapshotFallback: false
+        };
+      }
+    } else {
+      liveQuotaCache = null;
+    }
+
     latestError = null;
     await rememberAccount(account, latestStats);
     const refreshedProfile = account.hasCredentials
@@ -1767,7 +1908,7 @@ function buildDiagnostics() {
     `Saved encrypted credentials: ${credentialCount}`,
     `Latest stats available: ${Boolean(latestStats)}`,
     `Latest stats has quota readings: ${hasQuotaReadings(latestStats)}`,
-    `Latest stats source: ${latestStats?.isSnapshotFallback ? 'saved-snapshot' : latestStats ? 'local-session' : 'none'}`,
+    `Latest stats source: ${latestStats?.isSnapshotFallback ? 'saved-snapshot' : latestStats?.quotaSource || (latestStats ? 'local-session' : 'none')}`,
     `Context source: ${latestStats?.contextSource || 'none'}`,
     `Quota windows detected: ${quotaWindowsFromRateLimits(latestStats?.rateLimits).length}`,
     `Operational health: ${health.items.map(item => `${item.label}=${item.value}`).join(', ')}`,
@@ -1776,7 +1917,7 @@ function buildDiagnostics() {
     `Plan admin managed: ${currentPlanPolicy.adminManaged}`,
     `Effective refresh interval: ${scheduledRefreshSeconds || 'not scheduled'} s`,
     `Last refresh duration: ${lastRefreshDurationMs} ms`,
-    `Latest error: ${latestError ? latestError.stack || latestError.message : 'none'}`,
+    `Latest error: ${latestError ? sanitizeContextExcerpt(latestError.message || String(latestError), 240) : 'none'}`,
     '',
     'No tokens, account identifiers, session contents, or file paths are included.'
   ].join('\n');
@@ -1898,7 +2039,7 @@ function formatContextPercent(stats) {
   return `- Contexto usado del chat actual: ${formatPercent(percent)}`;
 }
 function projectContextIncludesSessionExcerpts() {
-  return Boolean(vscode.workspace.getConfiguration('codexGestion').get('projectContext.includeSessionExcerpts', true));
+  return Boolean(vscode.workspace.getConfiguration('codexGestion').get('projectContext.includeSessionExcerpts', false));
 }
 
 function sanitizeContextExcerpt(value, maxLength = 520) {
@@ -2508,6 +2649,8 @@ function dashboardHtml(webview) {
   });
   const planInfo = planDisplay(latestStats);
   const planStrategy = planPolicyText(currentPlanPolicy);
+  const creditStatus = creditStatusFromStats(latestStats, currentPlanPolicy);
+  const showCreditStatus = Boolean(latestStats?.rateLimits?.credits || currentPlanPolicy?.canBuyCredits);
   const health = operationalHealth(latestStats, latestAuthStatus, profiles);
   const metricItems = dashboardMetricItems();
   const panelSessionNotice = account.hasCredentials
@@ -2842,6 +2985,70 @@ function dashboardHtml(webview) {
         border-radius: 50%;
         background: var(--vscode-charts-green);
         box-shadow: 0 0 0 4px color-mix(in srgb, var(--vscode-charts-green) 18%, transparent);
+      }
+      .credit-status {
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+        border: 1px solid var(--vscode-widget-border);
+        border-radius: 8px;
+        background: var(--vscode-editor-background);
+      }
+      .credit-status-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .credit-status-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .credit-dot {
+        width: 9px;
+        height: 9px;
+        flex: 0 0 auto;
+        border-radius: 50%;
+        background: var(--vscode-descriptionForeground);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--vscode-descriptionForeground) 16%, transparent);
+      }
+      .credit-status.tone-good .credit-dot {
+        background: var(--vscode-charts-green);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--vscode-charts-green) 18%, transparent);
+      }
+      .credit-status.tone-warning .credit-dot {
+        background: var(--vscode-charts-orange);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--vscode-charts-orange) 18%, transparent);
+      }
+      .credit-status.tone-danger .credit-dot {
+        background: var(--vscode-charts-red);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--vscode-charts-red) 18%, transparent);
+      }
+      .credit-value {
+        flex: 0 0 auto;
+        font-size: 16px;
+        font-weight: 800;
+      }
+      .credit-status.tone-good .credit-value { color: var(--vscode-charts-green); }
+      .credit-status.tone-warning .credit-value { color: var(--vscode-charts-orange); }
+      .credit-status.tone-danger .credit-value { color: var(--vscode-charts-red); }
+      .credit-detail, .credit-action {
+        color: var(--vscode-descriptionForeground);
+        line-height: 1.4;
+      }
+      .credit-action {
+        display: inline-block;
+        width: fit-content;
+        padding: 4px 7px;
+        border-radius: 6px;
+        color: var(--vscode-foreground);
+        background: var(--vscode-toolbar-hoverBackground);
+        font-size: 11px;
+        font-weight: 700;
       }
       .plan-strategy-copy { min-width: 0; }
       .plan-strategy strong, .plan-strategy span { display: block; }
@@ -3197,13 +3404,20 @@ function dashboardHtml(webview) {
               <strong>${escapeHtml(item.value)}</strong>
             </div>`).join('')}
           </div>
-          <section class="plan-strategy">
+          ${showCreditStatus ? `<section class="credit-status tone-${escapeHtml(creditStatus.tone)}" data-credit-state="${escapeHtml(creditStatus.state)}">
+            <div class="credit-status-head">
+              <div class="credit-status-title"><span class="credit-dot" aria-hidden="true"></span><span>${escapeHtml(creditStatus.title)}</span></div>
+              <strong class="credit-value">${escapeHtml(creditStatus.value)}</strong>
+            </div>
+            <span class="credit-detail">${escapeHtml(creditStatus.detail)}</span>
+            <span class="credit-action">${escapeHtml(creditStatus.action)}</span>
+          </section>` : `<section class="plan-strategy">
             <div class="plan-strategy-copy">
               <strong>${escapeHtml(planStrategy.title)}</strong>
               <span>${escapeHtml(planStrategy.detail)}</span>
               <span class="plan-action">${escapeHtml(planStrategy.action)}</span>
             </div>
-          </section>
+          </section>`}
         </div>
       </section>
       </section>
@@ -3696,6 +3910,11 @@ function activate(context) {
   fs.watchFile(AUTH_PATH, { interval: 2000 }, scheduleAuthRefresh);
   startSessionWatcher();
   scheduleRefresh();
+
+  // Paint the status bar immediately. The live Codex app-server read may take
+  // a few seconds, so activation must not leave the status item hidden while
+  // the first refresh is in flight.
+  updateStatusBar(latestStats);
   refresh(false);
 
   const currentVersion = context.extension.packageJSON.version;
@@ -3721,6 +3940,7 @@ function deactivate() {
   }
   stopLoginWatcher();
   clearPostSwitchRefreshTimers();
+  rateLimitReader.dispose();
   fs.unwatchFile(AUTH_PATH);
 }
 
@@ -3754,6 +3974,8 @@ module.exports = {
     planDisplay,
     planPolicyFrom,
     planPolicyText,
+    creditStatusFromStats,
+    hasExhaustedQuota,
     operationalHealth,
     hasQuotaReadings,
     quotaWindowLabel,

@@ -11,21 +11,22 @@ function fileExists(candidate) {
   }
 }
 
-function findExecutableInDirectory(directory) {
+function findExecutableInDirectory(directory, nativeOnly = false) {
   if (!directory) return null;
   for (const name of CODEX_EXECUTABLE_NAMES) {
+    if (nativeOnly && process.platform === 'win32' && !name.endsWith('.exe')) continue;
     const candidate = path.join(directory, name);
     if (fileExists(candidate)) return candidate;
   }
   return null;
 }
 
-function findCodexExecutable() {
+function findCodexExecutable({ nativeOnly = false } = {}) {
   const pathEntries = String(process.env.PATH || '')
     .split(path.delimiter)
     .filter(Boolean);
   for (const entry of pathEntries) {
-    const found = findExecutableInDirectory(entry);
+    const found = findExecutableInDirectory(entry, nativeOnly);
     if (found) return found;
   }
 
@@ -59,7 +60,7 @@ function findCodexExecutable() {
       if (!entry.isDirectory() || !/^openai\.chatgpt-/i.test(entry.name)) continue;
       const extensionPath = path.join(root, entry.name);
       for (const platformFolder of platformFolders) {
-        const found = findExecutableInDirectory(path.join(extensionPath, 'bin', platformFolder));
+        const found = findExecutableInDirectory(path.join(extensionPath, 'bin', platformFolder), nativeOnly);
         if (found) return found;
       }
     }
