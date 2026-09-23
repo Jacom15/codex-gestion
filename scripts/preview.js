@@ -124,7 +124,14 @@ const server = http.createServer((request, response) => {
     sendFile(response, path.join(root, 'preview', 'generated', 'index.html'));
     return;
   }
-  sendFile(response, path.join(root, decodeURIComponent(url.pathname)));
+
+  const requestedPath = decodeURIComponent(url.pathname).replace(/^\/+/, '');
+  if (/^(overview|accounts|pending|tooltip)-(en|es)\.html$/.test(requestedPath)) {
+    sendFile(response, path.join(root, 'preview', 'generated', requestedPath));
+    return;
+  }
+
+  sendFile(response, path.join(root, requestedPath));
 });
 
 function shouldIgnore(filename) {
