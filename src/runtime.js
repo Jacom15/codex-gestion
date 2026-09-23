@@ -3909,6 +3909,11 @@ function activate(context) {
   fs.watchFile(AUTH_PATH, { interval: 2000 }, scheduleAuthRefresh);
   startSessionWatcher();
   scheduleRefresh();
+
+  // Paint the status bar immediately. The live Codex app-server read may take
+  // a few seconds, so activation must not leave the status item hidden while
+  // the first refresh is in flight.
+  updateStatusBar(latestStats);
   refresh(false);
 
   const currentVersion = context.extension.packageJSON.version;
