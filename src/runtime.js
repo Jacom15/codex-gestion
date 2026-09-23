@@ -101,7 +101,8 @@ let liveQuotaCache = null;
 let liveQuotaAttempt = null;
 
 function normalizeFsPath(value) {
-  return path.resolve(String(value || '')).replace(/[\\/]+$/, '').toLowerCase();
+  const normalized = path.resolve(String(value || '')).replace(/[\\/]+$/, '');
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
 }
 
 function isPathInside(candidate, root) {
@@ -1907,7 +1908,7 @@ function buildDiagnostics() {
     `Saved encrypted credentials: ${credentialCount}`,
     `Latest stats available: ${Boolean(latestStats)}`,
     `Latest stats has quota readings: ${hasQuotaReadings(latestStats)}`,
-    `Latest stats source: ${latestStats?.isSnapshotFallback ? 'saved-snapshot' : latestStats ? 'local-session' : 'none'}`,
+    `Latest stats source: ${latestStats?.isSnapshotFallback ? 'saved-snapshot' : latestStats?.quotaSource || (latestStats ? 'local-session' : 'none')}`,
     `Context source: ${latestStats?.contextSource || 'none'}`,
     `Quota windows detected: ${quotaWindowsFromRateLimits(latestStats?.rateLimits).length}`,
     `Operational health: ${health.items.map(item => `${item.label}=${item.value}`).join(', ')}`,
@@ -1916,7 +1917,7 @@ function buildDiagnostics() {
     `Plan admin managed: ${currentPlanPolicy.adminManaged}`,
     `Effective refresh interval: ${scheduledRefreshSeconds || 'not scheduled'} s`,
     `Last refresh duration: ${lastRefreshDurationMs} ms`,
-    `Latest error: ${latestError ? latestError.stack || latestError.message : 'none'}`,
+    `Latest error: ${latestError ? sanitizeContextExcerpt(latestError.message || String(latestError), 240) : 'none'}`,
     '',
     'No tokens, account identifiers, session contents, or file paths are included.'
   ].join('\n');
@@ -2038,7 +2039,7 @@ function formatContextPercent(stats) {
   return `- Contexto usado del chat actual: ${formatPercent(percent)}`;
 }
 function projectContextIncludesSessionExcerpts() {
-  return Boolean(vscode.workspace.getConfiguration('codexGestion').get('projectContext.includeSessionExcerpts', true));
+  return Boolean(vscode.workspace.getConfiguration('codexGestion').get('projectContext.includeSessionExcerpts', false));
 }
 
 function sanitizeContextExcerpt(value, maxLength = 520) {
