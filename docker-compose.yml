@@ -10,8 +10,23 @@ services:
     ports:
       - "5177:5177"
     volumes:
-      - .:/workspace
       - codex_gestion_node_modules:/workspace/node_modules
+    develop:
+      watch:
+        - action: sync
+          path: .
+          target: /workspace
+          ignore:
+            - .git/
+            - .github/
+            - .vscode/
+            - node_modules/
+            - dist/
+            - preview/generated/
+            - .codex-gestion/
+            - .codex-local-stats/
+            - "*.vsix"
+            - "*.log"
     restart: unless-stopped
 
 volumes:
