@@ -1,4 +1,4 @@
-const { t } = require('../i18n');
+const { t, languageTag } = require('../i18n');
 function finiteNumber(value) {
   if (value === null || value === undefined || value === '') return null;
   const number = Number(value);
@@ -69,11 +69,11 @@ function formatResetMoment(epochSeconds) {
   tomorrow.setDate(now.getDate() + 1);
   const sameDay = reset.toDateString() === now.toDateString();
   const nextDay = reset.toDateString() === tomorrow.toDateString();
-  const time = reset.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const time = reset.toLocaleTimeString(languageTag(), { hour: '2-digit', minute: '2-digit' });
 
   if (sameDay) return t('todayAt', { time });
   if (nextDay) return t('tomorrowAt', { time });
-  return reset.toLocaleString([], {
+  return reset.toLocaleString(languageTag(), {
     weekday: 'short',
     day: '2-digit',
     month: 'short',

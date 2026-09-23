@@ -15,15 +15,15 @@ try {
     & (Join-Path $PSScriptRoot "package.ps1")
   }
 
-  $vsix = Get-ChildItem -LiteralPath $dist -Filter "*.vsix" -File |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -First 1
+  $version = (Get-Content -LiteralPath (Join-Path $root "package.json") -Raw -Encoding UTF8 | ConvertFrom-Json).version
+  $vsixPath = Join-Path $dist "codex-gestion-$version.vsix"
 
-  if (-not $vsix) {
+  if (-not (Test-Path -LiteralPath $vsixPath)) {
     throw "No se encontro ningun .vsix en $dist. Ejecuta npm run package primero."
   }
 
-  & $Editor --install-extension $vsix.FullName --force
+  & $Editor --install-extension $vsixPath --force
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 finally {
   Pop-Location

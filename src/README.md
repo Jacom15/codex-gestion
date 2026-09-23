@@ -1,10 +1,15 @@
-# Source Layout
+# Source layout
 
-- `runtime.js`: VS Code lifecycle, command registration, refresh orchestration, and UI wiring.
-- `constants.js`: shared filesystem paths, storage keys, debounce values, and command timing.
-- `auth/accounts.js`: account identity parsing, profile IDs, SecretStorage keys, and auth failure summaries.
-- `codex/cli.js`: Codex executable discovery and shell-safe login command construction.
-- `sessions/reader.js`: local Codex session discovery and JSONL stats parsing.
-- `utils/format.js`: pure formatting, escaping, percentages, quota labels, and usage advice.
+- `runtime.js`: lifecycle, refresh orchestration, status bar, dashboard and account UI.
+- `constants.js`: filesystem paths, storage keys and timing constants.
+- `auth/accounts.js`: account identity parsing, profile IDs and SecretStorage keys.
+- `codex/cli.js`: Codex executable discovery and login command construction.
+- `codex/rate-limits.js`: read-only app-server requests, account attribution and quota/credit normalization.
+- `sessions/reader.js`: local session discovery and JSONL fallback parsing.
+- `plans/policy.js`: plan-family behavior and refresh policy.
+- `utils/format.js`: formatting, escaping, percentages and usage advice.
+- `i18n.js`: runtime English/Spanish strings.
 
-Keep new behavior near the module that owns the concept. `extension.js` should stay as the thin VS Code entrypoint.
+The direct account read is intentionally read-only: `initialize` → `account/read`
+→ `account/rateLimits/read`. Credits are normalized separately from plan
+eligibility; a missing credit snapshot means unknown, not zero.

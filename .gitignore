@@ -7,10 +7,10 @@ dist/
 !.vscode/launch.json
 .tmp-chrome-*/
 .tmp-chrome/
+.tmp-vscode-release/
 *.vsix
 *.mp4
 *.log
 .env
 .env.*
-
 preview/generated/

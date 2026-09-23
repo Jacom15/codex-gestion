@@ -1,82 +1,65 @@
-# Instalacion
+# Instalación de Codex Gestion 1.0.4
 
 ## Requisitos
 
-- Visual Studio Code instalado.
-- El archivo `codex-gestion-1.0.2.vsix`, o la extension publicada en el
-  Marketplace.
+- VS Code 1.85 o posterior.
+- Codex configurado con una cuenta de ChatGPT para consultar cuotas y créditos del plan.
+- Un ejecutable local compatible de Codex para la consulta directa.
 
-Node.js no es necesario para usar la extension. Solo hace falta si quieres
-modificarla o generar un nuevo paquete.
+Si la consulta directa no está disponible, Codex Gestion puede usar datos de
+sesiones locales o la última lectura guardada. Node.js no es necesario para usar
+un VSIX ya generado.
 
-## Instalar desde VSIX
+## Marketplace
 
-Si el paquete esta en la carpeta actual:
+Busca **Codex Gestion**, publisher **jacom15**, en Extensiones.
 
-```powershell
-code --install-extension .\dist\codex-gestion-1.0.2.vsix --force
-```
-
-Tambien puedes instalarlo desde VS Code con:
-
-```text
-Extensions: Install from VSIX...
-```
-
-VS Code copia la extension a la carpeta de extensiones del usuario, por ejemplo:
-
-```text
-%USERPROFILE%\.vscode\extensions
-```
-
-No hace falta conservar el `.vsix` despues de instalarlo, aunque conviene
-guardarlo para reinstalar o compartir la misma version.
-
-## Instalar desde Marketplace
-
-Cuando la extension este publicada, abre la vista Extensions en VS Code y busca:
-
-```text
-Codex Gestion
-```
-
-Despues de instalar o actualizar, ejecuta `Developer: Reload Window` si VS Code
-no recarga automaticamente la extension.
-
-## Crear un paquete nuevo
+## Instalar el VSIX local
 
 ```powershell
-npm install
-npm run release:prepare
+code --install-extension ./dist/codex-gestion-1.0.4.vsix --force
 ```
 
-Esto ejecuta los tests y crea:
+Después ejecuta **Developer: Reload Window** si VS Code no recarga la extensión.
 
-```text
-dist\codex-gestion-1.0.2.vsix
-```
+## Comprobación rápida
 
-Para probarlo en el equipo actual:
+1. Abre **Codex Gestion: Abrir panel visual**.
+2. Pulsa **Actualizar** con la cuenta deseada activa en Codex.
+3. Comprueba cuotas, renovaciones y la tarjeta de créditos.
+4. Si Codex no devuelve `credits`, el panel debe mostrar estado desconocido, no `0`.
+5. Las cuentas inactivas muestran una lectura guardada, no una consulta en vivo.
+
+## Desarrollo normal
+
+Con dependencias instaladas:
 
 ```powershell
-npm run install:local
+npm test
+npm run package
 ```
 
-## Actualizar la extension
-
-1. Cambia la version en `package.json`.
-2. Ejecuta `npm run release:prepare`.
-3. Instala el nuevo `.vsix` con `npm run install:local` o distribuyelo.
-
-## Limpiar artefactos
+Si `node_modules` no existe:
 
 ```powershell
-npm run clean
+npm install --prefer-offline --no-audit --no-fund
+npm test
+npm run package
 ```
 
+Resultado: `dist\codex-gestion-1.0.4.vsix`.
 
+## Preview persistente con Docker
 
+```powershell
+docker compose up -d --build --watch
+```
 
+Abre `http://localhost:5177`. Mientras Docker siga levantado, los cambios
+normales del repo se sincronizan automáticamente. El launcher está en
+`http://localhost:5177/launcher`.
 
+## Probar la extensión real
 
-
+Abre el repo en VS Code, pulsa **F5** y usa
+`Codex Gestion: Extension real`.

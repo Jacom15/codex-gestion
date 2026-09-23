@@ -5,9 +5,7 @@
       "name": "Codex Gestion: Extension real",
       "type": "extensionHost",
       "request": "launch",
-      "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}"
-      ]
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}"]
     }
   ]
 }

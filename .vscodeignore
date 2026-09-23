@@ -2,6 +2,9 @@
 .gitignore
 .github/**
 .vscode/**
+.dockerignore
+Dockerfile.dev
+docker-compose.yml
 .codex-local-stats/**
 .codex-gestion/**
 dist/**
@@ -15,3 +18,7 @@ debug.log
 *.vsix
 package-lock.json
 media/*.svg
+media/readme-*.png
+media/marketplace-*.png
+media/[0-9]*/**
+.tmp-*/**

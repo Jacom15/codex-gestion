@@ -52,21 +52,19 @@ function normalizeRateLimits(result) {
   };
 }
 
-// Read-only JSONL app-server session: initialize -> account/read -> account/rateLimits/read.
+// Read-only JSONL connection. No thread, turn, login or account-switch requests.
 function createRateLimitReader({ spawnProcess = spawn, findExecutable = findCodexExecutable, timeoutMs = 8000 } = {}) {
   const pending = new Set();
-
   const read = (version = '1.0.0') => new Promise(resolve => {
-    const executable = findExecutable();
+    const executable = findExecutable({ nativeOnly: true });
+    // Batch wrappers need a shell. Keep this protocol on native executables only.
     if (!executable || /\.(cmd|bat)$/i.test(executable)) return resolve(null);
-
     let child;
     let timer;
     let finished = false;
     let buffer = '';
     let account = null;
     let expectedId = 0;
-
     const finish = value => {
       if (finished) return;
       finished = true;
@@ -79,7 +77,6 @@ function createRateLimitReader({ spawnProcess = spawn, findExecutable = findCode
       resolve(value);
     };
     const cancel = () => finish(null);
-
     try {
       child = spawnProcess(executable, ['app-server'], {
         windowsHide: true,
@@ -95,24 +92,19 @@ function createRateLimitReader({ spawnProcess = spawn, findExecutable = findCode
       child.stdin.on('error', cancel);
       child.stdout.on('error', cancel);
       child.stdout.setEncoding('utf8');
-
       const send = message => child.stdin.write(JSON.stringify(message) + '\n');
-
       child.stdout.on('data', chunk => {
         if (finished) return;
         buffer += chunk;
         if (buffer.length > 1024 * 1024) return cancel();
-
         let end;
         while (!finished && (end = buffer.indexOf('\n')) >= 0) {
           const line = buffer.slice(0, end);
           buffer = buffer.slice(end + 1);
-
           let message;
           try { message = JSON.parse(line); } catch { continue; }
           if (message.id !== expectedId || message.method) continue;
           if (message.error) return cancel();
-
           if (expectedId === 0) {
             expectedId = 1;
             send({ method: 'initialized', params: {} });
@@ -128,28 +120,10 @@ function createRateLimitReader({ spawnProcess = spawn, findExecutable = findCode
           }
         }
       });
-
-      send({
-        method: 'initialize',
-        id: 0,
-        params: { clientInfo: { name: 'codex_gestion', title: 'Codex Gestion', version } }
-      });
-    } catch {
-      cancel();
-    }
+      send({ method: 'initialize', id: 0, params: { clientInfo: { name: 'codex_gestion', title: 'Codex Gestion', version } } });
+    } catch { cancel(); }
   });
-
-  return {
-    read,
-    dispose() {
-      for (const cancel of pending) cancel();
-    }
-  };
+  return { read, dispose() { for (const cancel of pending) cancel(); } };
 }
 
-module.exports = {
-  createRateLimitReader,
-  normalizeCredits,
-  normalizeRateLimits,
-  readingMatchesAccount
-};
+module.exports = { createRateLimitReader, normalizeCredits, normalizeRateLimits, readingMatchesAccount };
