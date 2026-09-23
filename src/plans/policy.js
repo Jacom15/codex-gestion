@@ -1,7 +1,7 @@
 function normalizePlan(value) {
   const normalized = String(value || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
   if (!normalized) return 'unknown';
-  if (normalized.includes('enterprise')) return 'enterprise';
+  if (normalized === 'ent26' || normalized.includes('enterprise')) return 'enterprise';
   if (normalized.includes('business') || normalized === 'team') return 'business';
   if (normalized.includes('edu') || normalized.includes('education')) return 'edu';
   if (normalized.includes('pro')) return 'pro';
