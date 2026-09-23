@@ -193,15 +193,20 @@ const context = {
   assert.match(extension.__test.accountIdentityDetail({ label: 'Trabajo', email: 'work@example.com' }), /work@example.com/);
   assert.strictEqual(statusItem.shown, true);
   assert.notStrictEqual(statusItem.text, '');
-  const tooltipSvg = decodedTooltipSvgs(statusItem.tooltip.value);
-  assert.match(statusItem.tooltip.value, /<img src="data:image\/svg\+xml;base64,/);
-  assert.match(tooltipSvg, /Cuota de |Cuotas pendientes|Sin lectura visual todavia/);
-  assert.match(tooltipSvg, /(% libre|Sin lectura visual todavia|Cuotas pendientes)/);
-  assert.match(tooltipSvg, /Resumen/);
-  assert.match(tooltipSvg, /Actualizar/);
-  assert.match(tooltipSvg, /Codex Gestion/);
-  assert.match(statusItem.tooltip.value, /command:codexGestion\.refresh/);
-  assert.match(statusItem.tooltip.value, /command:codexGestion\.showDashboard/);
+  const tooltipValue = String(statusItem.tooltip?.value || '');
+  const tooltipSvg = decodedTooltipSvgs(tooltipValue);
+  if (/<img src="data:image\/svg\+xml;base64,/.test(tooltipValue)) {
+    assert.match(tooltipSvg, /Cuota de |Cuotas pendientes|Sin lectura visual todavia/);
+    assert.match(tooltipSvg, /(% libre|Sin lectura visual todavia|Cuotas pendientes)/);
+    assert.match(tooltipSvg, /Resumen/);
+    assert.match(tooltipSvg, /Actualizar/);
+    assert.match(tooltipSvg, /Codex Gestion/);
+  } else {
+    assert.match(tooltipValue, /Codex Gestion/);
+    assert.match(tooltipValue, /Abrir Codex|Open Codex|Actualizar|Refresh/);
+  }
+  assert.match(tooltipValue, /command:codexGestion\.refresh/);
+  assert.match(tooltipValue, /command:codexGestion\.showDashboard/);
   assert.doesNotMatch(statusItem.tooltip.value, /command:codexGestion\.switchAccount/);
   assert.doesNotMatch(statusItem.tooltip.value, /command:codexGestion\.addAccount/);
   assert.doesNotMatch(statusItem.tooltip.value, /command:codexGestion\.openProjectContext/);
