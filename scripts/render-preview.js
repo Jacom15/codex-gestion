@@ -44,7 +44,7 @@ function createRenderer(language) {
     console, Buffer, process, Date: FixtureDate, setTimeout, clearTimeout, setInterval, clearInterval
   };
   const hooks = `
-    module.exports.render = (view) => {
+    module.exports.render = (view, scenario = 'credits') => {
       i18n.init(vscode);
       const account = { id: 'demo-work', identity: 'account:demo-work', email: 'alex@example.com', name: 'Alex Morgan', mode: 'chatgpt', hasCredentials: true };
       const activeId = accountProfileId(account);
@@ -54,8 +54,15 @@ function createRenderer(language) {
         contextSource: 'workspace', contextUpdatedAt: new Date().toISOString(), contextPercent: 29,
         activeSessions: 1, rateLimitFingerprint: 'account:' + activeId,
         rateLimits: { account_id: activeId, plan_type: 'plus',
-          primary: { used_percent: 37, window_minutes: 300, resets_at: Date.parse('2026-09-07T18:08:00+02:00') / 1000 },
-          secondary: { used_percent: 22, window_minutes: 10080, resets_at: Date.parse('2026-09-11T21:20:00+02:00') / 1000 }
+          primary: { used_percent: scenario === 'normal' ? 37 : 0, window_minutes: 300, resets_at: Date.parse('2026-09-07T18:08:00+02:00') / 1000 },
+          secondary: { used_percent: scenario === 'normal' ? 22 : 100, window_minutes: 10080, resets_at: Date.parse('2026-09-11T21:20:00+02:00') / 1000 },
+          credits: scenario === 'unknown'
+            ? null
+            : scenario === 'unlimited'
+              ? { has_credits: true, unlimited: true, balance: null }
+              : scenario === 'none'
+                ? { has_credits: false, unlimited: false, balance: '0' }
+                : { has_credits: true, unlimited: false, balance: '25' }
         }
       };
       const profiles = [
@@ -90,12 +97,18 @@ function renderAll() {
     for (const language of ['en', 'es']) {
       const render = createRenderer(language);
       for (const view of ['overview', 'accounts', 'pending']) {
-        const { html } = render(view);
+        const { html } = render(view, 'credits');
         const nonce = html.match(/<style nonce="([^"]+)"/)[1];
         const injected = html.replace('</head>', `<style nonce="${nonce}">${themeCss}</style><script nonce="${nonce}">window.acquireVsCodeApi=()=>({postMessage:m=>window.previewMessages.push(m)});window.previewMessages=[];</script></head>`);
         fs.writeFileSync(path.join(output, `${view}-${language}.html`), injected, 'utf8');
       }
-      const { tooltip, status } = render('overview');
+      for (const scenario of ['none', 'unlimited', 'unknown', 'normal']) {
+        const { html } = render('overview', scenario);
+        const nonce = html.match(/<style nonce="([^"]+)"/)[1];
+        const injected = html.replace('</head>', `<style nonce="${nonce}">${themeCss}</style><script nonce="${nonce}">window.acquireVsCodeApi=()=>({postMessage:m=>window.previewMessages.push(m)});window.previewMessages=[];</script></head>`);
+        fs.writeFileSync(path.join(output, `credits-${scenario}-${language}.html`), injected, 'utf8');
+      }
+      const { tooltip, status } = render('overview', 'credits');
       const text = status.replace('$(dashboard) ', '');
       fs.writeFileSync(path.join(output, `tooltip-${language}.html`), `<!doctype html><html lang="${language}"><meta charset="utf-8"><title>Codex Gestion ${pkg.version}</title><style>
         *{box-sizing:border-box}body{margin:0;background:#181818;color:#ccc;font:12px "Segoe UI",Arial,sans-serif}
@@ -105,7 +118,7 @@ function renderAll() {
         .status span{padding:2px 6px}.status svg{vertical-align:-2px;margin-right:5px}
       </style><div class="capture"><div class="hover">${tooltip}</div><div class="status"><span><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor"><circle cx="8" cy="8" r="6"/><path d="M4 10a4 4 0 0 1 8 0M8 8l3-3"/></svg>${text}</span></div></div></html>`, 'utf8');
     }
-    const links = ['overview-en','accounts-en','overview-es','accounts-es','tooltip-en','tooltip-es'];
+    const links = ['overview-en','accounts-en','overview-es','accounts-es','credits-none-es','credits-unlimited-es','credits-unknown-es','credits-normal-es','tooltip-en','tooltip-es'];
     fs.writeFileSync(path.join(output, 'index.html'), `<!doctype html><meta charset="utf-8"><title>Codex Gestion ${pkg.version} preview</title><style>body{font:16px system-ui;background:#181818;color:#ddd;padding:40px}a{color:#60a5fa}li{margin:16px}</style><h1>Codex Gestion ${pkg.version}</h1><p>Production renderer · fictional accounts · Dark Modern theme tokens</p><ul>${links.map(name=>`<li><a href="${name}.html">${name}</a></li>`).join('')}</ul>`);
   } finally { global.Date = NativeDate; }
   console.log(`Rendered production UI previews: ${output}`);
