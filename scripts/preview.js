@@ -117,6 +117,10 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (url.pathname === '/') {
+    sendFile(response, path.join(root, 'preview', 'generated', 'overview-es.html'));
+    return;
+  }
+  if (url.pathname === '/launcher' || url.pathname === '/index.html') {
     sendFile(response, path.join(root, 'preview', 'generated', 'index.html'));
     return;
   }
