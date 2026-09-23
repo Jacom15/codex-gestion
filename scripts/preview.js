@@ -126,7 +126,7 @@ const server = http.createServer((request, response) => {
   }
 
   const requestedPath = decodeURIComponent(url.pathname).replace(/^\/+/, '');
-  if (/^(overview|accounts|pending|tooltip)-(en|es)\.html$/.test(requestedPath)) {
+  if (/^(overview|accounts|pending|tooltip)-(en|es)\.html$|^credits-(none|unlimited|unknown|normal)-(en|es)\.html$/.test(requestedPath)) {
     sendFile(response, path.join(root, 'preview', 'generated', requestedPath));
     return;
   }
